@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grid Trading Bot Dashboard</title>
+    
+    <!-- TradingView Charting Library -->
+    <script src="https://unpkg.com/tradingview-charting-library/bundles/library.js"></script>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Chart.js for performance charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@2.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    
+    <!-- Socket.IO -->
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .dashboard-card {
+            background: linear-gradient(135deg, #2d3436, #636e72);
+            border: 1px solid #404040;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            margin-bottom: 20px;
+        }
+        
+        .metric-card {
+            background: linear-gradient(135deg, #00b894, #00a085);
+            color: white;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        
+        .metric-card.negative {
+            background: linear-gradient(135deg, #e17055, #d63031);
+        }
+        
+        .metric-card.neutral {
+            background: linear-gradient(135deg, #636e72, #2d3436);
+        }
+        
+        .metric-value {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .metric-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 400px;
+            background: #2d3436;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .tradingview-container {
+            height: 500px;
+            background: #131722;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .orders-table {
+            background: #2d3436;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .table-dark {
+            --bs-table-bg: #2d3436;
+            --bs-table-border-color: #404040;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-active {
+            background-color: #00b894;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-inactive {
+            background-color: #636e72;
+        }
+        
+        .status-error {
+            background-color: #e17055;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #0984e3, #74b9ff);
+            border: none;
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-weight: 600;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #00b894, #55efc4);
+            border: none;
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-weight: 600;
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #e17055, #fab1a0);
+            border: none;
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-weight: 600;
+        }
+        
+        .grid-levels {
+            max-height: 300px;
+            overflow-y: auto;
+            background: #2d3436;
+            border-radius: 8px;
+            padding: 10px;
+        }
+        
+        .grid-level {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            margin-bottom: 5px;
+            border-radius: 5px;
+            background: #636e72;
+        }
+        
+        .grid-level.buy {
+            background: rgba(0, 184, 148, 0.2);
+            border-left: 3px solid #00b894;
+        }
+        
+        .grid-level.sell {
+            background: rgba(225, 112, 85, 0.2);
+            border-left: 3px solid #e17055;
+        }
+        
+        .grid-level.center {
+            background: rgba(116, 185, 255, 0.2);
+            border-left: 3px solid #74b9ff;
+        }
+        
+        .order-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #fdcb6e;
+        }
+        
+        .navbar-brand {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark" style="background: linear-gradient(135deg, #2d3436, #636e72);">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                📈 Grid Trading Dashboard
+            </a>
+            <div class="navbar-nav ms-auto">
+                <span class="nav-item">
+                    <span class="status-indicator" id="connectionStatus"></span>
+                    <span id="connectionText">Connecting...</span>
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid py-4">
+        <!-- Summary Metrics Row -->
+        <div class="row mb-4">
+            <div class="col-md-2">
+                <div class="metric-card" id="pnlCard">
+                    <div class="metric-value" id="totalPnl">₹0.00</div>
+                    <div class="metric-label">Total P&L</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="metric-card neutral">
+                    <div class="metric-value" id="currentPrice">₹0.00</div>
+                    <div class="metric-label">Current Price</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="metric-card neutral">
+                    <div class="metric-value" id="position">0</div>
+                    <div class="metric-label">Position</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="metric-card neutral">
+                    <div class="metric-value" id="totalTrades">0</div>
+                    <div class="metric-label">Total Trades</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="metric-card neutral">
+                    <div class="metric-value" id="activeOrders">0</div>
+                    <div class="metric-label">Active Orders</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="metric-card neutral">
+                    <div class="metric-value" id="unrealizedPnl">₹0.00</div>
+                    <div class="metric-label">Unrealized P&L</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Price Chart -->
+            <div class="col-lg-8">
+                <div class="dashboard-card">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">📊 Price Chart & Grid Levels</h5>
+                        <div class="chart-container">
+                            <canvas id="priceChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Performance Chart -->
+                <div class="dashboard-card">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">💰 Performance Chart</h5>
+                        <div class="chart-container">
+                            <canvas id="performanceChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Sidebar -->
+            <div class="col-lg-4">
+                <!-- Trading Controls -->
+                <div class="dashboard-card">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">🚀 Trading Controls</h5>
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-success" id="setupGrid">Setup Grid</button>
+                            <button class="btn btn-primary" id="startTrading">Start Trading</button>
+                            <button class="btn btn-danger" id="stopTrading">Stop Trading</button>
+                            <div class="mt-2">
+                                <small class="text-muted">Status: <span id="tradingStatus" class="badge bg-secondary">Stopped</span></small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Monitoring Controls -->
+                <div class="dashboard-card">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">🎮 Monitoring</h5>
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-success" id="startMonitoring">Start Monitoring</button>
+                            <button class="btn btn-danger" id="stopMonitoring">Stop Monitoring</button>
+                            <button class="btn btn-primary" id="refreshData">Refresh Data</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Grid Levels -->
+                <div class="dashboard-card">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">⚡ Grid Levels</h5>
+                        <div class="grid-levels" id="gridLevelsContainer">
+                            <div class="text-center text-muted">Loading grid levels...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bot Status -->
+                <div class="dashboard-card">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">🤖 Bot Status</h5>
+                        <div id="botStatus">
+                            <p><strong>Symbol:</strong> <span id="symbol">-</span></p>
+                            <p><strong>Grid Type:</strong> <span id="gridType">-</span></p>
+                            <p><strong>Grid Levels:</strong> <span id="gridLevelsCount">-</span></p>
+                            <p><strong>Spacing:</strong> <span id="spacing">-</span>%</p>
+                            <p><strong>Status:</strong> <span id="botActive">-</span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Orders Table -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="dashboard-card">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">📋 Recent Orders</h5>
+                        <div class="orders-table">
+                            <table class="table table-dark table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Time</th>
+                                        <th>Type</th>
+                                        <th>Quantity</th>
+                                        <th>Price</th>
+                                        <th>Status</th>
+                                        <th>Order ID</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ordersTableBody">
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted">Loading orders...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // Global data store to prevent data loss
+        let dashboardData = {
+            summary: null,
+            priceHistory: null,
+            orders: null,
+            gridLevels: null,
+            lastUpdate: null
+        };
+
+        // Initialize Socket.IO connection
+        const socket = io();
+        
+        // Socket.IO event handlers
+        socket.on('connect', function() {
+            setConnectionStatus(true);
+            console.log('Connected to server');
+        });
+
+        socket.on('disconnect', function() {
+            setConnectionStatus(false);
+            console.log('Disconnected from server');
+        });
+
+        socket.on('price_update', function(data) {
+            if (data && data.price) {
+                updateCurrentPrice(data.price);
+                if (priceChart) {
+                    addPriceDataPoint(data.price, new Date(data.timestamp));
+                }
+            }
+        });
+
+        socket.on('summary_update', function(data) {
+            if (data && typeof data === 'object' && !data.error) {
+                dashboardData.summary = data;
+                dashboardData.lastUpdate = new Date();
+                updateSummaryMetrics(data);
+            }
+        });
+
+        socket.on('orders_filled', function(data) {
+            console.log('Orders filled notification received');
+            // Refresh orders and grid levels when new orders are filled
+            setTimeout(() => {
+                loadOrders();
+                loadGridLevels(); // Also refresh grid levels as they might change
+            }, 1000); // Small delay to ensure server state is updated
+        });
+        
+        // Chart instances
+        let priceChart = null;
+        let performanceChart = null;
+        let monitoringActive = false;
+        let autoRefreshInterval = null;
+        
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeCharts();
+            loadInitialData();
+            setupEventListeners();
+            setConnectionStatus(true);
+            
+            if (connected) {
+                statusElement.className = 'status-indicator status-active';
+                textElement.textContent = 'Connected';
+            } else {
+                statusElement.className = 'status-indicator status-inactive';
+                textElement.textContent = 'Disconnected';
+            }
+            updateTradingStatus();
+            startAutoRefresh();
+        });
+
+        function setConnectionStatus(connected) {
+            const statusElement = document.getElementById('connectionStatus');
+            const textElement = document.getElementById('connectionText');
+            
+            if (connected) {
+                statusElement.className = 'status-indicator status-active';
+                textElement.textContent = 'Connected';
+            } else {
+                statusElement.className = 'status-indicator status-inactive';
+                textElement.textContent = 'Disconnected';
+            }
+        }
+
+        function startAutoRefresh() {
+            // Auto-refresh data every 45 seconds (less aggressive)
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+            }
+            
+            autoRefreshInterval = setInterval(function() {
+                // Only refresh if not monitoring actively to avoid conflicts
+                if (!monitoringActive) {
+                    console.log('Auto-refresh: updating summary and orders');
+                    loadSummary();
+                    loadOrders();
+                    // Only refresh grid levels every other cycle to reduce flicker
+                    if (Math.random() > 0.5) {
+                        loadGridLevels();
+                    }
+                    // Price history less frequently
+                    if (Math.random() > 0.7) {
+                        loadPriceHistory();
+                    }
+                }
+            }, 45000);
+        }
+
+        function initializeCharts() {
+            // Price Chart
+            const priceCtx = document.getElementById('priceChart').getContext('2d');
+            priceChart = new Chart(priceCtx, {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: 'Price',
+                        data: [],
+                        borderColor: '#74b9ff',
+                        backgroundColor: 'rgba(116, 185, 255, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#ffffff'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'minute'
+                            },
+                            ticks: {
+                                color: '#ffffff'
+                            },
+                            grid: {
+                                color: '#404040'
+                            }
+                        },
+                        y: {
+                            ticks: {
+                                color: '#ffffff',
+                                callback: function(value) {
+                                    return '₹' + value.toFixed(2);
+                                }
+                            },
+                            grid: {
+                                color: '#404040'
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Performance Chart
+            const performanceCtx = document.getElementById('performanceChart').getContext('2d');
+            performanceChart = new Chart(performanceCtx, {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: 'Cumulative P&L',
+                        data: [],
+                        borderColor: '#00b894',
+                        backgroundColor: 'rgba(0, 184, 148, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#ffffff'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'hour'
+                            },
+                            ticks: {
+                                color: '#ffffff'
+                            },
+                            grid: {
+                                color: '#404040'
+                            }
+                        },
+                        y: {
+                            ticks: {
+                                color: '#ffffff',
+                                callback: function(value) {
+                                    return '₹' + value.toFixed(2);
+                                }
+                            },
+                            grid: {
+                                color: '#404040'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function loadInitialData() {
+            loadSummary();
+            loadPriceHistory();
+            loadOrders();
+            loadGridLevels();
+        }
+
+        function setupEventListeners() {
+            // Trading controls
+            document.getElementById('setupGrid').addEventListener('click', setupGrid);
+            document.getElementById('startTrading').addEventListener('click', startTrading);
+            document.getElementById('stopTrading').addEventListener('click', stopTrading);
+            
+            // Monitoring controls
+            document.getElementById('startMonitoring').addEventListener('click', startMonitoring);
+            document.getElementById('stopMonitoring').addEventListener('click', stopMonitoring);
+            document.getElementById('refreshData').addEventListener('click', function() {
+                console.log('Manual refresh triggered');
+                loadInitialData();
+            });
+        }
+
+        function loadSummary() {
+            fetch('/api/summary')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Error loading summary:', data.error);
+                        return;
+                    }
+                    dashboardData.summary = data;
+                    dashboardData.lastUpdate = new Date();
+                    updateSummaryMetrics(data);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    // If we have cached data, use it
+                    if (dashboardData.summary) {
+                        updateSummaryMetrics(dashboardData.summary);
+                    }
+                });
+        }
+
+        function loadPriceHistory() {
+            fetch('/api/price-history')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Error loading price history:', data.error);
+                        return;
+                    }
+                    dashboardData.priceHistory = data;
+                    updatePriceChart(data);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    // If we have cached data, use it
+                    if (dashboardData.priceHistory) {
+                        updatePriceChart(dashboardData.priceHistory);
+                    }
+                });
+        }
+
+        function loadOrders() {
+            fetch('/api/orders')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Error loading orders:', data.error);
+                        return;
+                    }
+                    dashboardData.orders = data;
+                    updateOrdersTable(data);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    // If we have cached data, use it
+                    if (dashboardData.orders) {
+                        updateOrdersTable(dashboardData.orders);
+                    }
+                });
+        }
+
+        function loadGridLevels() {
+            fetch('/api/grid-levels')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Error loading grid levels:', data.error);
+                        // Don't clear the display on error, keep existing data
+                        return;
+                    }
+                    if (Array.isArray(data) && data.length > 0) {
+                        dashboardData.gridLevels = data;
+                        updateGridLevels(data);
+                    } else {
+                        console.warn('Received empty or invalid grid levels data');
+                        // Keep existing grid levels display if new data is invalid
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    // If we have cached data, use it
+                    if (dashboardData.gridLevels) {
+                        updateGridLevels(dashboardData.gridLevels);
+                    }
+                });
+        }
+
+        function updateSummaryMetrics(data) {
+            document.getElementById('totalPnl').textContent = '₹' + (data.total_pnl || 0).toFixed(2);
+            document.getElementById('currentPrice').textContent = '₹' + (data.current_price || 0).toFixed(2);
+            document.getElementById('position').textContent = data.current_position || 0;
+            document.getElementById('totalTrades').textContent = data.total_trades || 0;
+            document.getElementById('activeOrders').textContent = (data.active_buy_orders || 0) + (data.active_sell_orders || 0);
+            document.getElementById('unrealizedPnl').textContent = '₹' + (data.unrealized_pnl || 0).toFixed(2);
+
+            // Update P&L card color
+            const pnlCard = document.getElementById('pnlCard');
+            const totalPnl = data.total_pnl || 0;
+            if (totalPnl > 0) {
+                pnlCard.className = 'metric-card';
+            } else if (totalPnl < 0) {
+                pnlCard.className = 'metric-card negative';
+            } else {
+                pnlCard.className = 'metric-card neutral';
+            }
+
+            // Update bot status
+            document.getElementById('symbol').textContent = data.symbol || '-';
+            document.getElementById('gridType').textContent = data.grid_type || '-';
+            document.getElementById('gridLevelsCount').textContent = data.grid_levels || '-';
+            document.getElementById('spacing').textContent = data.spacing_pct || '-';
+            document.getElementById('botActive').textContent = data.is_active ? 'Active' : 'Inactive';
+        }
+
+        function updateCurrentPrice(price) {
+            document.getElementById('currentPrice').textContent = '₹' + price.toFixed(2);
+        }
+
+        function updatePriceChart(priceData) {
+            if (!priceChart) return;
+            
+            const chartData = priceData.map(point => ({
+                x: new Date(point.timestamp),
+                y: point.price
+            }));
+
+            priceChart.data.datasets[0].data = chartData;
+            priceChart.update('none');
+        }
+
+        function addPriceDataPoint(price, timestamp) {
+            if (!priceChart) return;
+            
+            priceChart.data.datasets[0].data.push({
+                x: timestamp,
+                y: price
+            });
+
+            // Keep only last 100 points
+            if (priceChart.data.datasets[0].data.length > 100) {
+                priceChart.data.datasets[0].data.shift();
+            }
+
+            priceChart.update('none');
+        }
+
+        function updateOrdersTable(orderData) {
+            const tbody = document.getElementById('ordersTableBody');
+            tbody.innerHTML = '';
+
+            // Combine and sort orders by timestamp
+            const allOrders = [...orderData.filled_orders, ...orderData.active_orders];
+            allOrders.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+            // Show last 20 orders
+            const recentOrders = allOrders.slice(0, 20);
+
+            if (recentOrders.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No orders found</td></tr>';
+                return;
+            }
+
+            recentOrders.forEach(order => {
+                const row = document.createElement('tr');
+                const timestamp = new Date(order.timestamp).toLocaleString();
+                const price = order.fill_price || order.price || 0;
+                const statusClass = order.status === 'FILLED' ? 'success' : 'warning';
+                
+                row.innerHTML = `
+                    <td>${timestamp}</td>
+                    <td><span class="badge bg-${order.type === 'BUY' ? 'success' : 'danger'}">${order.type}</span></td>
+                    <td>${order.quantity}</td>
+                    <td>₹${price.toFixed(2)}</td>
+                    <td><span class="badge bg-${statusClass}">${order.status}</span></td>
+                    <td class="text-muted">${order.id}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function updateGridLevels(gridData) {
+            const gridContainer = document.getElementById('gridLevelsContainer');
+            
+            if (!gridData || gridData.length === 0) {
+                gridContainer.innerHTML = '<div class="text-center text-muted">No grid levels available</div>';
+                return;
+            }
+
+            // Clear container but preserve structure
+            gridContainer.innerHTML = '';
+            
+            // Sort by price descending
+            gridData.sort((a, b) => b.price - a.price);
+            
+            gridData.forEach(level => {
+                const div = document.createElement('div');
+                div.className = `grid-level ${level.type.toLowerCase()}`;
+                
+                div.innerHTML = `
+                    <span>₹${level.price.toFixed(2)}</span>
+                    <div>
+                        <span class="badge bg-secondary me-2">${level.type}</span>
+                        ${level.has_order ? '<div class="order-indicator"></div>' : ''}
+                    </div>
+                `;
+                
+                gridContainer.appendChild(div);
+            });
+        }
+
+        function startMonitoring() {
+            fetch('/api/start-monitoring', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Monitoring started:', data);
+                    monitoringActive = true;
+                    // Update button states
+                    document.getElementById('startMonitoring').disabled = true;
+                    document.getElementById('stopMonitoring').disabled = false;
+                    updateTradingStatus();
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function stopMonitoring() {
+            fetch('/api/stop-monitoring', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Monitoring stopped:', data);
+                    monitoringActive = false;
+                    // Update button states
+                    document.getElementById('startMonitoring').disabled = false;
+                    document.getElementById('stopMonitoring').disabled = true;
+                    updateTradingStatus();
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function setupGrid() {
+            if (!confirm('This will setup a new grid and cancel existing orders. Continue?')) {
+                return;
+            }
+            
+            fetch('/api/setup-grid', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert('Error setting up grid: ' + data.error);
+                    } else {
+                        console.log('Grid setup:', data);
+                        alert('Grid setup successful at price: ₹' + data.center_price.toFixed(2));
+                        loadInitialData();
+                        updateTradingStatus();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error setting up grid');
+                });
+        }
+
+        function startTrading() {
+            if (!confirm('This will start live trading with real money. Are you sure?')) {
+                return;
+            }
+            
+            fetch('/api/start-trading', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert('Error starting trading: ' + data.error);
+                    } else {
+                        console.log('Trading started:', data);
+                        alert('Grid trading started!');
+                        updateTradingStatus();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error starting trading');
+                });
+        }
+
+        function stopTrading() {
+            if (!confirm('This will stop grid trading. Continue?')) {
+                return;
+            }
+            
+            fetch('/api/stop-trading', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Trading stopped:', data);
+                    alert('Grid trading stopped!');
+                    updateTradingStatus();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error stopping trading');
+                });
+        }
+
+        function updateTradingStatus() {
+            fetch('/api/trading-status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Error getting trading status:', data.error);
+                        return;
+                    }
+                    
+                    const statusElement = document.getElementById('tradingStatus');
+                    if (data.trading_active && data.bot_active) {
+                        statusElement.textContent = 'Trading Active';
+                        statusElement.className = 'badge bg-success';
+                        document.getElementById('startTrading').disabled = true;
+                        document.getElementById('stopTrading').disabled = false;
+                    } else if (data.grid_setup) {
+                        statusElement.textContent = 'Grid Ready';
+                        statusElement.className = 'badge bg-warning';
+                        document.getElementById('startTrading').disabled = false;
+                        document.getElementById('stopTrading').disabled = true;
+                    } else {
+                        statusElement.textContent = 'Not Setup';
+                        statusElement.className = 'badge bg-secondary';
+                        document.getElementById('startTrading').disabled = true;
+                        document.getElementById('stopTrading').disabled = true;
+                    }
+                    
+                    // Update setup grid button
+                    document.getElementById('setupGrid').disabled = data.trading_active;
+                })
+                .catch(error => console.error('Error updating trading status:', error));
+        }
+
+        socket.on('trading_status', function(data) {
+            console.log('Trading status:', data);
+            const statusElement = document.getElementById('tradingStatus');
+            if (!statusElement) return;
+            
+            if (data.trading_active && data.bot_active) {
+            } else if (data.grid_setup) {
+                statusElement.textContent = 'Grid Ready';
+                statusElement.className = 'badge bg-warning';
+            } else {
+                statusElement.textContent = 'Not Setup';
+                statusElement.className = 'badge bg-secondary';
+            }
+        });
+    </script>
+</body>
+</html>
