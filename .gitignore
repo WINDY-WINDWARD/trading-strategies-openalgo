@@ -2,5 +2,6 @@ __pycache__
 *.pyc
 .cache
 .env
+config.yaml
 .DS_Store
 grid_config.json
