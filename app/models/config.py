@@ -45,6 +45,8 @@ class BacktestConfig(BaseModel):
     seed: int = Field(default=42, description="Random seed for reproducibility")
     candle_execution: bool = Field(default=True, description="Execute orders at candle close")
     commission_per_trade: float = Field(default=0.0, description="Fixed commission per trade")
+    delivery_tax_pct: float = Field(default=0.1, description="Delivery tax percentage")
+    intraday_tax_pct: float = Field(default=0.025, description="Intraday tax percentage")
 
 
 class StrategyConfig(BaseModel):

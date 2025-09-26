@@ -152,7 +152,7 @@ def main():
     # Create test data
     market_data = create_test_data()
     
-    print(f"Running test with initial cash: ${engine.portfolio.cash:.2f}")
+    print(f"Running test with initial cash: ₹{engine.portfolio.cash:.2f}")
     print("-" * 50)
     
     # Run backtest
@@ -167,8 +167,8 @@ def main():
     print(f"Orders filled: {len(strategy.orders_filled)}")
     
     print(f"\nPortfolio status:")
-    print(f"  Final cash: ${engine.portfolio.cash:.2f}")
-    print(f"  Total equity: ${engine.portfolio.total_equity:.2f}")
+    print(f"  Final cash: ₹{engine.portfolio.cash:.2f}")
+    print(f"  Total equity: ₹{engine.portfolio.total_equity:.2f}")
     
     # Check results
     success = True

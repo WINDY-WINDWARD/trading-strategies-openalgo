@@ -188,15 +188,24 @@ class GridTradingBot:
 
             self.grid_center_price = center_price
 
-            # Calculate grid bounds for risk management
-            self.grid_upper_bound = center_price * (1 + self.take_profit_pct / 100)
-            self.grid_lower_bound = center_price * (1 - self.stop_loss_pct / 100)
+            # Calculate grid bounds based on grid levels and spacing
+            if self.grid_type == 'arithmetic':
+                max_level_price = center_price + (self.grid_levels * center_price * (self.grid_spacing_pct / 100))
+                min_level_price = center_price - (self.grid_levels * center_price * (self.grid_spacing_pct / 100))
+            else:  # geometric
+                ratio = 1 + (self.grid_spacing_pct / 100)
+                max_level_price = center_price * (ratio ** self.grid_levels)
+                min_level_price = center_price / (ratio ** self.grid_levels)
+
+            # Set bounds with some buffer
+            self.grid_upper_bound = max_level_price * 1.01  # 1% buffer
+            self.grid_lower_bound = max(min_level_price * 0.99, center_price * 0.8)  # 1% buffer, but not below 80% of center
 
             # Calculate grid levels
             buy_levels, sell_levels = self.calculate_grid_levels(center_price)
 
-            self.logger.info(f"Setting up grid around ${center_price:.2f}")
-            self.logger.info(f"Grid bounds: ${self.grid_lower_bound:.2f} - ${self.grid_upper_bound:.2f}")
+            self.logger.info(f"Setting up grid around ₹{center_price:.2f}")
+            self.logger.info(f"Grid bounds: ₹{self.grid_lower_bound:.2f} - ₹{self.grid_upper_bound:.2f}")
             self.logger.info(f"Buy levels: {len(buy_levels)}, Sell levels: {len(sell_levels)}")
 
             # Cancel existing orders before placing new ones
@@ -395,31 +404,39 @@ class GridTradingBot:
             if total_shares_needed <= 0:
                 return True
 
+            # Check if we already have enough shares
+            shares_to_buy = max(0, total_shares_needed - self.current_position)
+            if shares_to_buy <= 0:
+                self.logger.info(f"Already have sufficient shares ({self.current_position}) for sell orders (need {total_shares_needed})")
+                return True
+
+            self.logger.info(f"Need {total_shares_needed} shares for sell orders, have {self.current_position}, buying {shares_to_buy} more")
+
             current_price = self.get_current_price()
             if current_price is None:
                 self.logger.error("Unable to get current price for market buy")
                 return False
 
-            self.logger.info(f"Buying {total_shares_needed} shares at market price {current_price:.2f} to cover sell orders")
+            self.logger.info(f"Buying {shares_to_buy} shares at market price {current_price:.2f} to cover sell orders")
             
-            order_id = self.place_market_order('BUY', total_shares_needed)
+            order_id = self.place_market_order('BUY', shares_to_buy)
             if order_id:
                 # Update position immediately (assuming market order fills)
                 # Note: In production, you should check order status
-                self.current_position += total_shares_needed
+                self.current_position += shares_to_buy
                 
                 # Record the market buy transaction
                 self.filled_orders.append({
                     'order_id': order_id,
                     'type': 'BUY',
                     'action': 'MARKET_BUY',
-                    'quantity': total_shares_needed,
+                    'quantity': shares_to_buy,
                     'price': current_price,
                     'timestamp': datetime.now(),
                     'purpose': 'initial_position'
                 })
                 
-                self.logger.info(f"Successfully bought {total_shares_needed} shares. Current position: {self.current_position}")
+                self.logger.info(f"Successfully bought {shares_to_buy} shares. Current position: {self.current_position}")
                 return True
             else:
                 return False
@@ -466,6 +483,7 @@ class GridTradingBot:
         newly_filled = []
 
         try:
+            self.logger.debug("Checking for filled orders...")
             # Get current order status
             response = self.client.orderbook()
 
@@ -556,11 +574,14 @@ class GridTradingBot:
 
             opposite_price = round(opposite_price, 2)
 
-            # Check if price is within grid bounds
+            # Check if price is within grid bounds, and adjust if necessary
             if (opposite_action == 'BUY' and opposite_price < self.grid_lower_bound) or \
                (opposite_action == 'SELL' and opposite_price > self.grid_upper_bound):
-                self.logger.warning(f"Opposite order price {opposite_price} outside grid bounds")
-                return False
+                self.logger.warning(f"Opposite order price {opposite_price} outside grid bounds [{self.grid_lower_bound:.2f} - {self.grid_upper_bound:.2f}], adjusting to nearest bound")
+                if opposite_action == 'BUY':
+                    opposite_price = self.grid_lower_bound
+                else:
+                    opposite_price = self.grid_upper_bound
 
             # Place opposite order
             order_id = self.place_limit_order(opposite_action, quantity, opposite_price)
@@ -715,7 +736,7 @@ class GridTradingBot:
 
             # Reset grid around new price
             self.grid_resets += 1
-            self.logger.info(f"Resetting grid #{self.grid_resets} around ${current_price:.2f}")
+            self.logger.info(f"Resetting grid #{self.grid_resets} around ₹{current_price:.2f}")
 
             success = self.setup_grid(current_price)
 
@@ -744,7 +765,7 @@ class GridTradingBot:
         if self.current_position == 0:
             return 0.0
 
-        # Calculate average entry price from filled orders
+        # Calculate average entry price from BUY orders only
         total_cost = 0.0
         total_quantity = 0
 
@@ -752,14 +773,13 @@ class GridTradingBot:
             if order['type'] == 'BUY':
                 total_cost += order['fill_price'] * order['quantity']
                 total_quantity += order['quantity']
-            else:
-                total_cost -= order['fill_price'] * order['quantity']
-                total_quantity -= order['quantity']
+            # Note: We don't subtract sell orders from average price calculation
+            # Sell orders reduce position but don't affect the average price of remaining shares
 
         if total_quantity == 0:
             return 0.0
 
-        avg_price = total_cost / total_quantity if total_quantity != 0 else current_price
+        avg_price = total_cost / total_quantity
         unrealized_pnl = (current_price - avg_price) * self.current_position
 
         return unrealized_pnl
@@ -774,22 +794,21 @@ class GridTradingBot:
         current_price = self.get_current_price() or 0
         unrealized_pnl = self.calculate_unrealized_pnl(current_price)
 
-        # Calculate realized P&L
+        # Calculate realized P&L (make copies to avoid modifying original data)
         realized_pnl = 0.0
-        buy_orders = [o for o in self.filled_orders if o['type'] == 'BUY']
-        sell_orders = [o for o in self.filled_orders if o['type'] == 'SELL']
+        buy_orders = [o.copy() for o in self.filled_orders if o['type'] == 'BUY']
+        sell_orders = [o.copy() for o in self.filled_orders if o['type'] == 'SELL']
 
-        # Simple P&L calculation (can be improved with FIFO/LIFO)
+        # Simple P&L calculation using FIFO (can be improved with more sophisticated matching)
         for sell in sell_orders:
+            remaining_sell_qty = sell['quantity']
             for buy in buy_orders:
-                if buy['quantity'] > 0:
-                    traded_qty = min(sell['quantity'], buy['quantity'])
+                if buy['quantity'] > 0 and remaining_sell_qty > 0:
+                    traded_qty = min(remaining_sell_qty, buy['quantity'])
                     pnl = (sell['fill_price'] - buy['fill_price']) * traded_qty
                     realized_pnl += pnl
                     buy['quantity'] -= traded_qty
-                    sell['quantity'] -= traded_qty
-                    if sell['quantity'] == 0:
-                        break
+                    remaining_sell_qty -= traded_qty
 
         # Handle case where grid bounds might be None (not initialized yet)
         if self.grid_lower_bound is not None and self.grid_upper_bound is not None:
@@ -934,7 +953,7 @@ class GridTradingBot:
 
                 # Log current status
                 summary = self.get_performance_summary()
-                self.logger.info(f"Price: ${current_price:.2f}, Position: {summary['current_position']}, "
+                self.logger.info(f"Price: ₹{current_price:.2f}, Position: {summary['current_position']}, "
                                f"P&L: {summary['total_pnl']:.2f}, Active Orders: {len(self.pending_orders)}")
 
                 # Save state
@@ -1012,6 +1031,7 @@ class GridTradingBot:
                     
                     order_book = self.buy_orders if level_type == 'BUY' else self.sell_orders
                     order_id = self._find_order_at_price(level_price, order_book) if level_type != 'CENTER' else None
+                    has_order = order_id is not None
                     grid_levels.append({
                         'price': level_price,
                         'type': level_type,
@@ -1028,6 +1048,7 @@ class GridTradingBot:
                     
                     order_book = self.buy_orders if level_type == 'BUY' else self.sell_orders
                     order_id = self._find_order_at_price(level_price, order_book) if level_type != 'CENTER' else None
+                    has_order = order_id is not None
                     grid_levels.append({
                         'price': level_price,
                         'type': level_type,

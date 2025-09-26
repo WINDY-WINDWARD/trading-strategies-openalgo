@@ -129,7 +129,7 @@ class Portfolio:
         self.peak_equity = initial_cash
         self.max_drawdown = 0.0
         
-        logger.info(f"Portfolio initialized with ${initial_cash:,.2f}")
+        logger.info(f"Portfolio initialized with ₹{initial_cash:,.2f}")
     
     @property
     def total_positions_value(self) -> float:
@@ -224,7 +224,7 @@ class Portfolio:
             # Check if we have enough cash for buy orders
             if order.action == OrderAction.BUY:
                 if self.cash < total_cost:
-                    logger.warning(f"Insufficient cash for order {order.id}: need ${total_cost:.2f}, have ${self.cash:.2f}")
+                    logger.warning(f"Insufficient cash for order {order.id}: need ₹{total_cost:.2f}, have ₹{self.cash:.2f}")
                     return False
                 
                 # Deduct cash and add position
@@ -341,7 +341,7 @@ class Portfolio:
         self.peak_equity = self.initial_cash
         self.max_drawdown = 0.0
         
-        logger.info(f"Portfolio reset with ${self.initial_cash:,.2f}")
+        logger.info(f"Portfolio reset with ₹{self.initial_cash:,.2f}")
     
     def to_dict(self) -> Dict:
         """Convert portfolio to dictionary."""

@@ -10,6 +10,9 @@ from pathlib import Path
 from datetime import datetime
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, BackgroundTasks
 from fastapi.responses import JSONResponse
+from fastapi.responses import StreamingResponse
+import csv
+import io
 
 from ...utils.config_loader import load_config, save_config, get_default_config
 from ...models.config import AppConfig
@@ -146,6 +149,32 @@ async def get_config():
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+
+@router.get("/api/results/{run_id}/export-csv")
+async def export_trades_csv(run_id: str):
+    """Export trades for a backtest run as CSV file"""
+    result = results_storage.get(run_id)
+    if not result or 'trades' not in result:
+        return JSONResponse(status_code=404, content={"error": "No trades found for this run_id"})
+
+    trades = result['trades']
+    fieldnames = ['id', 'symbol', 'entry_time', 'exit_time', 'entry_price', 'exit_price', 'quantity', 'side', 'pnl', 'pnl_pct', 'fees', 'duration_seconds']
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+    for trade in trades:
+        # Format timestamps if present
+        trade = trade.copy()
+        for k in ['entry_time', 'exit_time']:
+            if k in trade and hasattr(trade[k], 'isoformat'):
+                trade[k] = trade[k].isoformat()
+        writer.writerow({k: trade.get(k, '') for k in fieldnames})
+
+    output.seek(0)
+    return StreamingResponse(output, media_type='text/csv', headers={
+        'Content-Disposition': 'attachment; filename=trades.csv'
+    })
 
 @router.post("/api/config")
 async def update_config(config_data: Dict[str, Any]):

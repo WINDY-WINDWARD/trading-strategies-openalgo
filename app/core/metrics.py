@@ -39,7 +39,12 @@ class MetricsCalculator:
         equity_curve: List[EquityPoint],
         trades: List[Trade],
         start_date: datetime,
-        end_date: datetime
+        end_date: datetime,
+        delivery_trades_count: int = 0,
+        intraday_trades_count: int = 0,
+        total_delivery_tax: float = 0.0,
+        total_intraday_tax: float = 0.0,
+        total_tax_payable: float = 0.0
     ) -> PerformanceMetrics:
         """
         Calculate comprehensive performance metrics.
@@ -138,6 +143,11 @@ class MetricsCalculator:
             final_capital=final_capital,
             peak_capital=peak_capital,
             total_fees=total_fees,
+            delivery_trades_count=delivery_trades_count,
+            intraday_trades_count=intraday_trades_count,
+            total_delivery_tax=total_delivery_tax,
+            total_intraday_tax=total_intraday_tax,
+            total_tax_payable=total_tax_payable,
             max_consecutive_wins=max_consecutive_wins,
             max_consecutive_losses=max_consecutive_losses,
             largest_win=largest_win,

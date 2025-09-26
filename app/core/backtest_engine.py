@@ -7,7 +7,7 @@ import asyncio
 import time
 import uuid
 from typing import List, Optional, Dict, Any, Callable
-from datetime import datetime
+from datetime import datetime, date
 import logging
 from tqdm import tqdm
 
@@ -19,6 +19,7 @@ from ..models.results import BacktestResult, Trade, EquityPoint
 from ..core.portfolio import Portfolio
 from ..core.order_simulator import OrderSimulator
 from ..core.metrics import MetricsCalculator
+from ..core.tax_calculator import TaxCalculator
 from ..core.events import (
     EventQueue, MarketDataEvent, OrderEvent, FillEvent,
     PortfolioEvent
@@ -56,10 +57,15 @@ class BacktestEngine:
             seed=config.backtest.seed
         )
         self.metrics_calculator = MetricsCalculator()
+        self.tax_calculator = TaxCalculator(
+            delivery_tax_pct=config.backtest.delivery_tax_pct,
+            intraday_tax_pct=config.backtest.intraday_tax_pct
+        )
         self.event_queue = EventQueue()
         
         # State
         self.current_time: Optional[datetime] = None
+        self.current_date: Optional[date] = None
         self.current_tick: int = 0
         self.active_orders: Dict[str, Order] = {}
         self.completed_trades: List[Trade] = []
@@ -137,6 +143,10 @@ class BacktestEngine:
         
         execution_time = time.time() - start_time
         
+        # Process final EOD if needed
+        if self.current_date is not None:
+            self._process_end_of_day(self.current_date)
+        
         # Generate results
         result = self._generate_results(
             market_data[0].timestamp,
@@ -158,9 +168,16 @@ class BacktestEngine:
         Args:
             candle: Market data candle
         """
+        # Check for date change (end of day processing)
+        candle_date = candle.timestamp.date()
+        if self.current_date is not None and candle_date != self.current_date:
+            # Process end of day for previous date
+            self._process_end_of_day(self.current_date)
+        
         # Update tick and time tracking
         self.current_tick += 1
         self.current_time = candle.timestamp
+        self.current_date = candle_date
         
         logger.debug(f"Processing tick {self.current_tick}: {candle.timestamp} - Price: {candle.close}")
         
@@ -185,6 +202,32 @@ class BacktestEngine:
         
         # Update processed ticks
         self.processed_ticks += 1
+    
+    def _process_end_of_day(self, processing_date: date) -> None:
+        """
+        Process end of day for tax calculations.
+        
+        Args:
+            processing_date: Date to process EOD for
+        """
+        # Process EOD for all symbols that had activity
+        symbols = set()
+        for order in self.order_history:
+            if order.filled_at and order.filled_at.date() == processing_date:
+                symbols.add(order.symbol)
+        
+        for symbol in symbols:
+            # Update last price for the day
+            if symbol in self.portfolio.positions:
+                last_price = self.portfolio.positions[symbol].last_price
+                # Update tax calculator with last price
+                if symbol in self.tax_calculator.daily_positions and processing_date in self.tax_calculator.daily_positions[symbol]:
+                    self.tax_calculator.daily_positions[symbol][processing_date].last_price = last_price
+            
+            # Process EOD tax calculation
+            self.tax_calculator.process_end_of_day(symbol, processing_date)
+        
+        logger.debug(f"Processed EOD for {processing_date}: {len(symbols)} symbols")
     
     def _process_tick_orders(self, candle: Candle) -> None:
         """
@@ -240,7 +283,7 @@ class BacktestEngine:
                     # Notify strategy of the fill
                     if self.strategy:
                         self.strategy.on_order_update(order)
-
+                        
                     # Create trade record if this completes a round trip
                     self._check_for_completed_trade(order, fill_event)
                     
@@ -428,6 +471,15 @@ class BacktestEngine:
             fill_event: Fill event
         """
         if order.status == OrderStatus.FILLED:
+            # Process trade through tax calculator
+            tax_amount = self.tax_calculator.process_trade(
+                symbol=order.symbol,
+                action=order.action,
+                quantity=fill_event.fill_quantity,
+                price=fill_event.fill_price,
+                timestamp=order.filled_at or self.current_time
+            )
+            
             # Calculate duration properly
             duration_seconds = 0.0
             if order.created_at and order.filled_at:
@@ -450,13 +502,13 @@ class BacktestEngine:
                 side=side,  # Show actual side (BUY/SELL)
                 pnl=0.0,  # Individual order has no PnL
                 pnl_pct=0.0,
-                fees=fill_event.commission,
+                fees=fill_event.commission + tax_amount,  # Include tax in fees
                 duration_seconds=duration_seconds
             )
             
             self.completed_trades.append(trade)
             
-            logger.debug(f"Order execution recorded: {side} {fill_event.fill_quantity} {order.symbol} @ {fill_event.fill_price:.2f}")
+            logger.debug(f"Order execution recorded: {side} {fill_event.fill_quantity} {order.symbol} @ {fill_event.fill_price:.2f}, tax: {tax_amount:.2f}")
     
     def _generate_results(
         self,
@@ -487,13 +539,19 @@ class BacktestEngine:
             equity_curve.append(equity_point)
         
         # Calculate performance metrics
+        tax_summary = self.tax_calculator.get_tax_summary()
         metrics = self.metrics_calculator.calculate_metrics(
             initial_capital=self.config.backtest.initial_cash,
             final_capital=self.portfolio.total_equity,
             equity_curve=equity_curve,
             trades=self.completed_trades,
             start_date=start_time,
-            end_date=end_time
+            end_date=end_time,
+            delivery_trades_count=tax_summary.delivery_trades_count,
+            intraday_trades_count=tax_summary.intraday_trades_count,
+            total_delivery_tax=tax_summary.total_delivery_tax,
+            total_intraday_tax=tax_summary.total_intraday_tax,
+            total_tax_payable=tax_summary.total_tax_payable
         )
         
         # Convert active orders to list

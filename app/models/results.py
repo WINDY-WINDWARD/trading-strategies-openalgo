@@ -87,6 +87,13 @@ class PerformanceMetrics(BaseModel):
     peak_capital: float = Field(..., description="Peak capital reached")
     total_fees: float = Field(..., description="Total fees paid")
     
+    # Tax metrics
+    delivery_trades_count: int = Field(default=0, description="Number of delivery trades")
+    intraday_trades_count: int = Field(default=0, description="Number of intraday trades")
+    total_delivery_tax: float = Field(default=0.0, description="Total delivery tax paid")
+    total_intraday_tax: float = Field(default=0.0, description="Total intraday tax paid")
+    total_tax_payable: float = Field(default=0.0, description="Total tax payable")
+    
     # Additional metrics
     max_consecutive_wins: int = Field(default=0, description="Maximum consecutive wins")
     max_consecutive_losses: int = Field(default=0, description="Maximum consecutive losses")

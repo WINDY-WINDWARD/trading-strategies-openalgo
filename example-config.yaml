@@ -1,13 +1,15 @@
 backtest:
   candle_execution: true
   commission_per_trade: 0.0
+  delivery_tax_pct: 0.1
   fee_bps: 100.0
   initial_cash: 10000.0
+  intraday_tax_pct: 0.025
   seed: 42
   slippage_bps: 2.0
 data:
   cache_dir: .cache/data
-  end: '2025-06-28'
+  end: '2025-08-28'
   exchange: NSE
   start: '2025-01-01'
   symbol: IDBI
@@ -16,7 +18,7 @@ data:
 logging:
   file: ./backtest.log
   format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-  level: DEBUG
+  level: INFO
 openalgo:
   api_key: 89fd8eaa346fb5e91bcbe8a3490b3d7b9c9c7defbe2babefd3037f11a41376a7
   base_url: http://127.0.0.1:5000
@@ -26,13 +28,13 @@ openalgo:
   timeout: 30
 strategy:
   auto_reset: true
-  grid_levels: 15
+  grid_levels: 10
   grid_spacing_pct: 2.0
   grid_type: geometric
   initial_position_strategy: buy_at_market
-  order_amount: 500.0
-  stop_loss_pct: 2.0
-  take_profit_pct: 6.0
+  order_amount: 1000.0
+  stop_loss_pct: 10.0
+  take_profit_pct: 15.0
   type: grid
 ui:
   debug: false
