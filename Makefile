@@ -7,6 +7,7 @@ help:
 	@echo "Available targets:"
 	@echo "  dev          - Install development dependencies"
 	@echo "  web          - Start web dashboard"
+	@echo "  live         - Start live trading bot"
 	@echo "  clean        - Clean cache and temporary files"
 
 # Development setup
@@ -17,6 +18,9 @@ dev:
 # Run web dashboard
 web:
 	python scripts/launch_web.py
+
+live: 
+	python .\launch_trading_bot.py
 
 # Cleanup
 clean:

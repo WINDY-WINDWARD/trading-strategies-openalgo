@@ -271,6 +271,14 @@ make web
 - Export detailed trade logs
 - Tune parameters and re-run
 
+### 5. Live Trading
+```bash
+# uses grid_config.json
+# Web interface
+make live
+# Visit http://localhost:5001 (check printed URL)
+```
+
 ## Architecture Overview
 
 ```
