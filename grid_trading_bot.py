@@ -247,6 +247,7 @@ class GridTradingBot:
                 # Only place sell orders if we have sufficient position
                 available_shares = self.current_position
                 self.logger.info(f"Current position: {available_shares} shares")
+                self.logger.info(f"Wait_for_buy strategy: Will only place sell orders after acquiring shares through buy orders")
                 
                 if available_shares > 0:
                     # Place sell orders only for shares we have
@@ -504,8 +505,10 @@ class GridTradingBot:
                         # Update position and profit
                         if order_details['type'] == 'BUY':
                             self.current_position += order_details['quantity']
+                            self.logger.info(f"Buy order filled: position increased from {self.current_position - order_details['quantity']} to {self.current_position}")
                         else:
                             self.current_position -= order_details['quantity']
+                            self.logger.info(f"Sell order filled: position decreased from {self.current_position + order_details['quantity']} to {self.current_position}")
 
                         self.total_trades += 1
 
@@ -542,7 +545,9 @@ class GridTradingBot:
                 
                 # For wait_for_buy strategy, also place pending sell orders if we now have shares
                 if self.initial_position_strategy == 'wait_for_buy' and self.current_position > 0:
-                    self.place_pending_sell_orders()
+                    self.logger.info(f"Buy order filled - attempting to place pending sell orders (position: {self.current_position})")
+                    placed_orders = self.place_pending_sell_orders()
+                    self.logger.info(f"Successfully placed {placed_orders} pending sell orders")
                     
             else:
                 # Place buy order below sell price
@@ -590,23 +595,36 @@ class GridTradingBot:
             Number of sell orders placed
         """
         try:
+            self.logger.info(f"place_pending_sell_orders called: strategy={self.initial_position_strategy}")
+            
             if self.initial_position_strategy != 'wait_for_buy':
+                self.logger.info("Not wait_for_buy strategy, skipping")
                 return 0
                 
             if self.current_position <= 0 or self.grid_center_price is None:
+                self.logger.info(f"Cannot place sell orders: position={self.current_position}, grid_center={self.grid_center_price}")
                 return 0
                 
             # Calculate sell levels from current grid
             _, sell_levels = self.calculate_grid_levels(self.grid_center_price)
+            self.logger.info(f"Calculated {len(sell_levels)} sell levels: {sell_levels[:5]}...")  # Show first 5
             
             # Track shares allocated to existing sell orders
             shares_in_sell_orders = 0
+            existing_sell_prices = []
             for order_id, details in self.pending_orders.items():
                 if details['type'] == 'SELL':
                     shares_in_sell_orders += details['quantity']
+                    existing_sell_prices.append(details['price'])
+                    
+            self.logger.info(f"Existing sell orders at prices: {existing_sell_prices}")
+            self.logger.info(f"Shares already in sell orders: {shares_in_sell_orders}")
                     
             available_shares = self.current_position - shares_in_sell_orders
+            self.logger.info(f"Available shares for new sell orders: {available_shares}")
+            
             if available_shares <= 0:
+                self.logger.info("No available shares for sell orders")
                 return 0
                 
             orders_placed = 0
@@ -614,8 +632,11 @@ class GridTradingBot:
             
             # Place sell orders for prices that don't already have orders
             for price in sell_levels:
+                self.logger.debug(f"Checking sell level {price}: within_bounds={price < self.grid_upper_bound}, already_exists={price in self.sell_orders}")
+                
                 if price < self.grid_upper_bound and price not in self.sell_orders:
                     quantity = math.floor(self.order_amount / price)
+                    self.logger.debug(f"Calculated quantity for price {price}: {quantity}")
                     
                     # Check if we have enough available shares
                     if shares_allocated + quantity <= available_shares:
@@ -631,11 +652,16 @@ class GridTradingBot:
                             shares_allocated += quantity
                             orders_placed += 1
                             self.logger.info(f"Placed pending sell order: {quantity} @ {price}")
+                        else:
+                            self.logger.warning(f"Failed to place sell order at {price}")
                     else:
+                        self.logger.info(f"Insufficient shares for sell order at {price}: need {quantity}, have {available_shares - shares_allocated} available")
                         break  # No more shares available
                         
             if orders_placed > 0:
                 self.logger.info(f"Placed {orders_placed} pending sell orders using {shares_allocated} shares")
+            else:
+                self.logger.warning("No pending sell orders were placed")
                 
             return orders_placed
             

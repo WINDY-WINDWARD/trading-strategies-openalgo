@@ -7,6 +7,7 @@ with TradingView charts integration, real-time updates, and comprehensive analyt
 """
 
 from flask import Flask, render_template, jsonify, request
+from flask import Response
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 import json
@@ -15,6 +16,7 @@ import time
 from datetime import datetime, timedelta
 from typing import Dict, List
 import os
+import csv
 
 from grid_trading_bot import GridTradingBot
 
@@ -333,6 +335,38 @@ def setup_grid():
             return jsonify({'error': 'Failed to setup grid'}), 500
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+    # --- Export Trades to CSV Endpoint ---
+    @app.route('/api/export-trades-csv')
+    def export_trades_csv():
+        """Export filled trades as CSV file"""
+        if not bot:
+            return jsonify({'error': 'Bot not initialized'}), 500
+
+        # Get filled trades
+        trades = bot.filled_orders if hasattr(bot, 'filled_orders') else []
+        if not trades:
+            return jsonify({'error': 'No trades found'}), 404
+
+        # Define CSV columns
+        fieldnames = ['order_id', 'timestamp', 'type', 'quantity', 'fill_price']
+
+        # Prepare CSV data
+        def generate():
+            writer = csv.DictWriter(
+                Response(), fieldnames=fieldnames, extrasaction='ignore')
+            yield ','.join(fieldnames) + '\n'
+            for trade in trades:
+                row = {k: trade.get(k, '') for k in fieldnames}
+                # Format timestamp if needed
+                ts = row.get('timestamp')
+                if hasattr(ts, 'isoformat'):
+                    row['timestamp'] = ts.isoformat()
+                yield ','.join(str(row[k]) for k in fieldnames) + '\n'
+
+        return Response(generate(), mimetype='text/csv', headers={
+            'Content-Disposition': 'attachment; filename=trades.csv'
+        })
 
 def trading_loop():
     """Background trading loop that runs the grid strategy"""

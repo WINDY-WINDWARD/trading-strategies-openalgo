@@ -1,0 +1,159 @@
+# app/api/routes/backtest.py
+"""
+API routes for running backtests and managing configuration.
+"""
+
+import asyncio
+import logging
+from typing import Dict, Any
+from pathlib import Path
+from datetime import datetime
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, BackgroundTasks
+from fastapi.responses import JSONResponse
+
+from ...utils.config_loader import load_config, save_config, get_default_config
+from ...models.config import AppConfig
+from ...core.backtest_engine import BacktestEngine
+from ...strategies import GridStrategyAdapter
+from ...data.synthetic_data import SyntheticDataProvider
+from ...data.openalgo_provider import OpenAlgoDataProvider
+from ..websockets import ConnectionManager
+
+logger = logging.getLogger(__name__)
+router = APIRouter()
+manager = ConnectionManager()
+
+# In-memory storage for backtest results
+# In a production system, this would be a database or a persistent cache.
+results_storage: Dict[str, Any] = {}
+
+
+@router.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            # Keep the connection alive
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+        logger.info("Client disconnected from WebSocket.")
+
+
+@router.post("/api/backtest/run")
+async def run_backtest_endpoint(background_tasks: BackgroundTasks):
+    """
+    Run a backtest in the background.
+    """
+    try:
+        app_config = load_config()
+        run_id = app_config.run_id
+        
+        # Add the backtest run to background tasks
+        background_tasks.add_task(run_backtest_task, app_config)
+        
+        return JSONResponse(
+            status_code=202,
+            content={"message": "Backtest started", "run_id": run_id}
+        )
+    except Exception as e:
+        logger.error(f"Failed to start backtest: {e}", exc_info=True)
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+async def run_backtest_task(app_config: AppConfig):
+    """The actual backtest execution task."""
+    run_id = app_config.run_id
+    logger.info(f"Starting backtest task for run_id: {run_id}")
+    await manager.broadcast({"type": "status", "message": "Fetching market data...", "run_id": run_id})
+
+    try:
+        # --- Data Fetching ---
+        if app_config.data.use_synthetic or not app_config.openalgo.api_key:
+            logger.info("Using synthetic data provider.")
+            data_provider = SyntheticDataProvider(seed=app_config.backtest.seed)
+            candles = data_provider.generate_ohlcv(
+                symbol=app_config.data.symbol,
+                exchange=app_config.data.exchange,
+                start=datetime.fromisoformat(app_config.data.start),
+                end=datetime.fromisoformat(app_config.data.end),
+                timeframe=app_config.data.timeframe
+            )
+        else:
+            logger.info("Using OpenAlgo data provider.")
+            data_provider = OpenAlgoDataProvider(app_config.openalgo)
+            candles = data_provider.get_historical_data(
+                symbol=app_config.data.symbol, exchange=app_config.data.exchange, timeframe=app_config.data.timeframe,
+                start=datetime.fromisoformat(app_config.data.start), end=datetime.fromisoformat(app_config.data.end)
+            )
+        if not candles:
+            raise ValueError("No market data available for the given configuration.")
+
+        await manager.broadcast({"type": "status", "message": f"Loaded {len(candles)} candles. Initializing strategy...", "run_id": run_id})
+
+        # --- Strategy Initialization ---
+        strategy = GridStrategyAdapter()
+        strategy.initialize(**app_config.strategy.dict(), symbol=app_config.data.symbol, exchange=app_config.data.exchange)
+
+        # --- Engine Setup ---
+        engine = BacktestEngine(app_config)
+        
+        # Define a progress callback for the engine
+        async def progress_callback(status: Dict[str, Any]):
+            await manager.broadcast({"type": "progress", "data": status, "run_id": run_id})
+
+        engine.set_progress_callback(progress_callback)
+        engine.set_strategy(strategy)
+
+        await manager.broadcast({"type": "status", "message": "Running backtest...", "run_id": run_id})
+
+        # --- Run Backtest ---
+        # Running synchronous code in an async function
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, engine.run_backtest, candles)
+        
+        # Store and broadcast final result with candles data
+        result_dict = result.to_dict()
+        result_dict['candles'] = [candle.to_dict() for candle in candles]
+        results_storage[run_id] = result_dict
+        await manager.broadcast({"type": "result", "data": results_storage[run_id], "run_id": run_id})
+        logger.info(f"Backtest {run_id} completed successfully.")
+
+    except Exception as e:
+        logger.error(f"Error during backtest run {run_id}: {e}", exc_info=True)
+        await manager.broadcast({"type": "error", "message": str(e), "run_id": run_id})
+
+
+@router.get("/api/results/{run_id}")
+async def get_results(run_id: str):
+    """Retrieve the results of a completed backtest."""
+    result = results_storage.get(run_id)
+    if result:
+        return JSONResponse(content=result)
+    return JSONResponse(status_code=404, content={"error": "Results not found"})
+
+
+@router.get("/api/config")
+async def get_config():
+    """Get the current application configuration."""
+    try:
+        config = load_config()
+        return JSONResponse(content=config.dict())
+    except FileNotFoundError:
+        # If no config exists, return a default one
+        config = get_default_config()
+        return JSONResponse(content=config.dict())
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@router.post("/api/config")
+async def update_config(config_data: Dict[str, Any]):
+    """Update and save the application configuration."""
+    try:
+        config = AppConfig(**config_data)
+        save_config(config)
+        return JSONResponse(content={"message": "Configuration saved successfully."})
+    except Exception as e:
+        logger.error(f"Failed to save configuration: {e}", exc_info=True)
+        return JSONResponse(status_code=400, content={"error": str(e)})
