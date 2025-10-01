@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+A<!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
 <head>
     <meta charset="UTF-8">
@@ -94,9 +94,27 @@
                 </div>
 
                 <h4>Configuration</h4>
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h6 class="card-title">Chart Settings</h6>
+                        <div class="mb-3">
+                            <label for="dataPoints" class="form-label">Data Points</label>
+                            <select class="form-select form-select-sm" id="dataPoints">
+                                <option value="50">Last 50 points</option>
+                                <option value="100">Last 100 points</option>
+                                <option value="200" selected>Last 200 points</option>
+                                <option value="500">Last 500 points</option>
+                                <option value="all">All data</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary btn-sm w-100" id="updateChart">Update Chart</button>
+                    </div>
+                </div>
+                
                 <div class="card">
                     <div class="card-body">
-                        <textarea id="config-editor" class="form-control" rows="20" style="font-family: monospace; font-size: 0.8rem;"></textarea>
+                        <h6 class="card-title">Configuration Editor</h6>
+                        <textarea id="config-editor" class="form-control" rows="15" style="font-family: monospace; font-size: 0.8rem;"></textarea>
                         <button id="save-config-btn" class="btn btn-secondary w-100 mt-2">Save Config</button>
                     </div>
                 </div>
@@ -228,6 +246,7 @@
             const welcomeMessage = document.getElementById('welcome-message');
 
             let currentRunId = null;
+            let currentResults = null; // Store current results for chart updates
 
             // --- WebSocket ---
             function setupWebSocket() {
@@ -290,6 +309,7 @@
             }
 
             function displayResults(result) {
+                currentResults = result; // Store results for chart updates
                 welcomeMessage.style.display = 'none';
                 resultsContainer.style.display = 'block';
 
@@ -345,21 +365,35 @@
                 // Candlestick Chart
                 if (result.candles) {
                     const candles = result.candles;
+                    
+                    // Get selected data points limit
+                    const dataPointsSelect = document.getElementById('dataPoints');
+                    const maxPointsValue = dataPointsSelect ? dataPointsSelect.value : '200';
+                    
+                    let limitedCandles;
+                    if (maxPointsValue === 'all') {
+                        limitedCandles = candles;
+                    } else {
+                        const maxPoints = parseInt(maxPointsValue);
+                        limitedCandles = candles.length > maxPoints ? 
+                            candles.slice(-maxPoints) : candles;
+                    }
+
                     const candlestickTrace = {
-                        x: candles.map(c => c.timestamp),
-                        open: candles.map(c => c.open),
-                        high: candles.map(c => c.high),
-                        low: candles.map(c => c.low),
-                        close: candles.map(c => c.close),
+                        x: limitedCandles.map(c => c.timestamp),
+                        open: limitedCandles.map(c => c.open),
+                        high: limitedCandles.map(c => c.high),
+                        low: limitedCandles.map(c => c.low),
+                        close: limitedCandles.map(c => c.close),
                         type: 'candlestick',
                         name: result.symbol || 'Price',
                         increasing: { 
-                            line: { color: '#00ff88'},
-                            fillcolor: '#00ff88'
+                            line: { color: '#00b894', width: 1},
+                            fillcolor: '#00b894'
                         },
                         decreasing: { 
-                            line: { color: '#ff4444'},
-                            fillcolor: '#ff4444'
+                            line: { color: '#e17055', width: 1},
+                            fillcolor: '#e17055'
                         },
                         whiskerwidth: 0.8,
                         xaxis: 'x',
@@ -370,8 +404,18 @@
                     const traces = [candlestickTrace];
                     
                     if (result.trades && result.trades.length > 0) {
-                        const buyOrders = result.trades.filter(t => t.side === 'BUY');
-                        const sellOrders = result.trades.filter(t => t.side === 'SELL');
+                        // Filter trades to match the limited time range
+                        const startTime = limitedCandles.length > 0 ? limitedCandles[0].timestamp : null;
+                        const endTime = limitedCandles.length > 0 ? limitedCandles[limitedCandles.length - 1].timestamp : null;
+                        
+                        const filteredTrades = result.trades.filter(t => {
+                            const tradeTime = new Date(t.entry_time);
+                            return (!startTime || tradeTime >= new Date(startTime)) && 
+                                   (!endTime || tradeTime <= new Date(endTime));
+                        });
+                        
+                        const buyOrders = filteredTrades.filter(t => t.side === 'BUY');
+                        const sellOrders = filteredTrades.filter(t => t.side === 'SELL');
 
                         // Buy order executions
                         if (buyOrders.length > 0) {
@@ -382,9 +426,10 @@
                                 type: 'scatter',
                                 name: 'Buy Executions',
                                 marker: {
-                                    color: '#00ff88',
-                                    size: 8,
-                                    symbol: 'triangle-up'
+                                    color: '#00b894',
+                                    size: 10,
+                                    symbol: 'triangle-up',
+                                    line: { color: '#ffffff', width: 1 }
                                 }
                             });
                         }
@@ -398,49 +443,65 @@
                                 type: 'scatter',
                                 name: 'Sell Executions',
                                 marker: {
-                                    color: '#ff4444',
-                                    size: 8,
-                                    symbol: 'triangle-down'
+                                    color: '#e17055',
+                                    size: 10,
+                                    symbol: 'triangle-down',
+                                    line: { color: '#ffffff', width: 1 }
                                 }
                             });
                         }
                     }
 
                     const candleLayout = {
-                        margin: { l: 60, r: 30, t: 30, b: 50 },
+                        title: {
+                            text: `${result.symbol || 'Price'} Chart (${limitedCandles.length} points)`,
+                            font: { color: '#fff', size: 16 }
+                        },
+                        margin: { l: 60, r: 30, t: 60, b: 60 },
                         paper_bgcolor: 'rgba(0,0,0,0)',
                         plot_bgcolor: 'rgba(0,0,0,0)',
                         xaxis: { 
-                            gridcolor: '#444',
+                            gridcolor: '#404040',
                             title: 'Time',
                             rangeslider: { visible: false },
                             type: 'date',
                             automargin: true,
                             tickangle: -45,
-                            nticks: 10
+                            nticks: 10,
+                            color: '#fff'
                         },
                         yaxis: { 
-                            gridcolor: '#444',
+                            gridcolor: '#404040',
                             title: 'Price (₹)',
-                            automargin: true
+                            automargin: true,
+                            color: '#fff'
                         },
-                        font: { color: '#fff' },
+                        font: { color: '#fff', size: 12 },
                         showlegend: true,
                         legend: {
-                            x: 0,
-                            y: 1,
-                            bgcolor: 'rgba(0,0,0,0.5)'
+                            x: 0.02,
+                            y: 0.98,
+                            bgcolor: 'rgba(0,0,0,0.7)',
+                            bordercolor: '#404040',
+                            borderwidth: 1,
+                            font: { color: '#fff', size: 11 }
                         },
                         autosize: true,
                         bargap: 0.1,
-                        bargroupgap: 0.05
+                        bargroupgap: 0.05,
+                        hovermode: 'x unified'
                     };
                     
-                    Plotly.newPlot('candle-chart', traces, candleLayout, {
+                    const candleConfig = {
                         responsive: true, 
                         displayModeBar: true,
-                        modeBarButtonsToRemove: ['lasso2d', 'select2d']
-                    });
+                        modeBarButtonsToRemove: ['lasso2d', 'select2d', 'pan2d'],
+                        displaylogo: false,
+                        scrollZoom: true,
+                        doubleClick: 'reset+autosize'
+                    };
+                    
+                    Plotly.newPlot('candle-chart', traces, candleLayout, candleConfig);
                 }
 
                 // Order Executions Table
@@ -530,6 +591,20 @@
             // --- Event Listeners ---
             runBtn.addEventListener('click', runBacktest);
             saveBtn.addEventListener('click', saveConfig);
+            
+            // Chart update functionality
+            const updateChartBtn = document.getElementById('updateChart');
+            if (updateChartBtn) {
+                updateChartBtn.addEventListener('click', function() {
+                    if (currentResults) {
+                        // Re-render the candlestick chart with new settings
+                        console.log('Updating chart with new data point settings');
+                        displayResults(currentResults);
+                    } else {
+                        alert('No backtest results available. Please run a backtest first.');
+                    }
+                });
+            }
 
             // --- Initial Load ---
             loadConfig();

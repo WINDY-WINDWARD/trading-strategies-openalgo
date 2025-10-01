@@ -1,4 +1,3 @@
-
 import json
 import pandas as pd
 import numpy as np
@@ -10,7 +9,9 @@ from typing import Dict, List, Optional, Tuple
 from openalgo import api
 import os
 
-class GridTradingBot:
+from strats.trading_bot import TradingBot
+
+class GridTradingBot(TradingBot):
     """
     Advanced Grid Trading Strategy for OpenAlgo Platform
 
@@ -23,7 +24,7 @@ class GridTradingBot:
     - Comprehensive logging and monitoring
     """
 
-    def __init__(self,
+    def __init__(self, 
                  api_key: str,
                  host: str = 'http://127.0.0.1:5000',
                  symbol: str = 'RELIANCE',
@@ -904,7 +905,7 @@ class GridTradingBot:
         except Exception as e:
             self.logger.error(f"Error loading state: {e}")
 
-    def run_grid_strategy(self, check_interval: int = 30):
+    def run_strategy(self, check_interval: int = 30):
         """
         Main strategy execution loop
 
@@ -1138,7 +1139,7 @@ def main():
         print(f"   {key}: {value}")
 
     # Run the strategy (uncomment to start trading)
-    bot.run_grid_strategy(check_interval=30)  # Check every 30 seconds
+    bot.run_strategy(check_interval=30)  # Check every 30 seconds
 
 
 if __name__ == "__main__":

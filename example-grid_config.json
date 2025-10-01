@@ -1,0 +1,49 @@
+
+{
+  "api_settings": {
+    "api_key": "",
+    "host": "http://127.0.0.1:5000",
+    "comment": "Replace api_key with your actual OpenAlgo API key from the platform"
+  },
+  "trading_settings": {
+    "symbol": "IDFCFIRSTB",
+    "exchange": "NSE",
+    "comment": "Trading symbol and exchange. Popular choices: RELIANCE, TCS, INFY"
+  },
+  "grid_configuration": {
+    "grid_levels": 7,
+    "grid_spacing_pct": 1.5,
+    "grid_type": "geometric",
+    "order_amount": 500,
+    "comment": "Grid setup: levels = orders above/below center, spacing = % between levels"
+  },
+  "risk_management": {
+    "stop_loss_pct": 10.0,
+    "take_profit_pct": 15.0,
+    "auto_reset": true,
+    "max_position_size": 5000,
+    "comment": "Risk controls: stop_loss and take_profit are % from grid center"
+  },
+  "execution_settings": {
+    "check_interval_seconds": 30,
+    "state_file": "grid_trading_state.json",
+    "enable_logging": true,
+    "log_level": "INFO",
+    "initial_position_strategy": "buy_at_market",
+    "comment": "Bot execution parameters and logging configuration. initial_position_strategy: 'wait_for_buy' (wait for buy orders) or 'buy_at_market' (buy shares at market price for sell orders)"
+  },
+  "market_hours": {
+    "start_hour": 9,
+    "end_hour": 15,
+    "timezone": "Asia/Kolkata",
+    "trading_days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+    "comment": "Market trading hours and days (9 AM to 3:30 PM IST weekdays)"
+  },
+  "advanced_settings": {
+    "min_order_value": 100,
+    "max_orders_per_side": 10,
+    "price_precision": 2,
+    "quantity_precision": 0,
+    "comment": "Advanced parameters for fine-tuning bot behavior"
+  }
+}

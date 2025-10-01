@@ -1,0 +1,43 @@
+backtest:
+  candle_execution: true
+  commission_per_trade: 0.0
+  delivery_tax_pct: 0.1
+  fee_bps: 100.0
+  initial_cash: 10000.0
+  intraday_tax_pct: 0.025
+  seed: 42
+  slippage_bps: 2.0
+data:
+  cache_dir: .cache/data
+  end: '2025-10-01'
+  exchange: NSE
+  start: '2025-08-01'
+  symbol: IDBI
+  timeframe: 15m
+  use_synthetic: false
+logging:
+  file: ./backtest.log
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  level: INFO
+openalgo:
+  api_key: 
+  base_url: http://127.0.0.1:5000
+  cache_max_age_hours: 24
+  force_cache_use: true
+  retry_attempts: 3
+  timeout: 30
+strategy:
+  auto_reset: true
+  grid_levels: 10
+  grid_spacing_pct: 2.0
+  grid_type: geometric
+  initial_position_strategy: buy_at_market
+  order_amount: 1000.0
+  stop_loss_pct: 10.0
+  take_profit_pct: 15.0
+  type: grid
+ui:
+  debug: false
+  host: 0.0.0.0
+  port: 42069
+  title: Grid Trading Backtester

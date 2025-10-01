@@ -71,7 +71,7 @@ def load_bot_config():
 @app.route('/')
 def index():
     """Main dashboard page"""
-    return render_template('dashboard.html')
+    return render_template('Griddashboard.html')
 
 @app.route('/api/summary')
 def get_summary():

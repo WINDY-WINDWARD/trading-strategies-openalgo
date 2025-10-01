@@ -102,11 +102,13 @@ class TaxCalculator:
                 prev_position = self.daily_positions[symbol][prev_date]
                 opening_quantity = prev_position.closing_quantity
                 delivery_tax_paid = prev_position.delivery_tax_accrued
+                logger.debug(f"Carrying forward {opening_quantity} shares from {prev_date} to {trade_date}")
             
             self.daily_positions[symbol][trade_date] = DailyPosition(
                 date=trade_date,
                 symbol=symbol,
                 opening_quantity=opening_quantity,
+                closing_quantity=opening_quantity,  # Initialize to opening quantity
                 delivery_tax_paid=delivery_tax_paid
             )
         
@@ -130,7 +132,9 @@ class TaxCalculator:
             Tax amount (0 for buys)
         """
         position.bought_today += quantity
-        position.closing_quantity += quantity
+        position.closing_quantity = position.opening_quantity + position.bought_today - position.sold_today
+        
+        logger.debug(f"Buy: {quantity} shares, closing position now: {position.closing_quantity}")
         
         # No tax on buys
         return 0.0
@@ -149,36 +153,44 @@ class TaxCalculator:
         """
         trade_value = quantity * price
         total_tax = 0.0
+        remaining_to_sell = quantity
         
-        # Initialize variables
-        delivery_sell_quantity = 0.0
-        intraday_sell_quantity = 0.0
-        
-        # First, sell from opening position (delivery shares)
-        delivery_sell_quantity = min(quantity, position.opening_quantity)
-        if delivery_sell_quantity > 0:
-            # Delivery tax already paid, but additional transaction cost
-            delivery_tax = (delivery_sell_quantity * price) * (self.intraday_tax_pct / 100.0)
-            position.delivery_tax_accrued += delivery_tax
-            total_tax += delivery_tax
-            position.opening_quantity -= delivery_sell_quantity
-            quantity -= delivery_sell_quantity
-            self.tax_summary.delivery_trades_count += 1
-        
-        # Then sell from today's buys (intraday)
-        if quantity > 0:
-            intraday_sell_quantity = min(quantity, position.bought_today)
+        # First, sell from today's buys (intraday) - FIFO approach for intraday
+        if remaining_to_sell > 0 and position.bought_today > 0:
+            intraday_sell_quantity = min(remaining_to_sell, position.bought_today)
             if intraday_sell_quantity > 0:
                 intraday_tax = (intraday_sell_quantity * price) * (self.intraday_tax_pct / 100.0)
                 position.intraday_tax_accrued += intraday_tax
                 total_tax += intraday_tax
                 position.bought_today -= intraday_sell_quantity
-                quantity -= intraday_sell_quantity
+                remaining_to_sell -= intraday_sell_quantity
                 self.tax_summary.intraday_trades_count += 1
+                
+                logger.debug(f"Intraday sale: {intraday_sell_quantity} shares at {price}, tax: {intraday_tax}")
         
-        # Update closing quantity
-        position.closing_quantity -= (delivery_sell_quantity + intraday_sell_quantity)
-        position.sold_today += (delivery_sell_quantity + intraday_sell_quantity)
+        # Then sell from opening position (delivery shares from previous days)
+        if remaining_to_sell > 0 and position.opening_quantity > 0:
+            delivery_sell_quantity = min(remaining_to_sell, position.opening_quantity)
+            if delivery_sell_quantity > 0:
+                # For delivery trades, only charge transaction cost (intraday rate) since delivery tax was already paid
+                delivery_transaction_cost = (delivery_sell_quantity * price) * (self.intraday_tax_pct / 100.0)
+                position.delivery_tax_accrued += delivery_transaction_cost
+                total_tax += delivery_transaction_cost
+                position.opening_quantity -= delivery_sell_quantity
+                remaining_to_sell -= delivery_sell_quantity
+                self.tax_summary.delivery_trades_count += 1
+                
+                logger.debug(f"Delivery sale: {delivery_sell_quantity} shares at {price}, transaction cost: {delivery_transaction_cost}")
+        
+        # Update closing quantity and sold today
+        total_sold = quantity - remaining_to_sell
+        position.sold_today += total_sold
+        position.closing_quantity = position.opening_quantity + position.bought_today - position.sold_today
+        
+        logger.debug(f"Sell: {total_sold} shares, closing position now: {position.closing_quantity}")
+        
+        if remaining_to_sell > 0:
+            logger.warning(f"Could not sell {remaining_to_sell} shares - insufficient position")
         
         return total_tax
 
@@ -244,13 +256,13 @@ class TaxCalculator:
         Returns:
             Previous trading day or None
         """
-        # Simple implementation - in real trading, would check market calendar
-        # For now, assume previous day if it exists in our records
-        from datetime import timedelta
+        if symbol not in self.daily_positions:
+            return None
         
-        prev_date = current_date - timedelta(days=1)
-        if symbol in self.daily_positions and prev_date in self.daily_positions[symbol]:
-            return prev_date
+        # Find the most recent date before current_date that has positions
+        previous_dates = [d for d in self.daily_positions[symbol].keys() if d < current_date]
+        if previous_dates:
+            return max(previous_dates)
         return None
 
     def reset(self) -> None:

@@ -1,6 +1,21 @@
-# Grid Trading Backtesting Engine
+# Trading Backtesting Engine with OpenAlgo Integration for Live Market Data and trading
 
 A comprehensive, production-ready backtesting framework for grid trading strategies with OpenAlgo integration, featuring advanced analytics, web dashboards, and extensive customization options.
+
+## ⚠️ IMPORTANT DISCLAIMER
+
+**⚠️ NO LIABILITY - USE AT YOUR OWN RISK**
+
+This software is provided "AS IS" without warranty of any kind. The author(s) assume **NO LIABILITY** for any financial losses, damages, or consequences resulting from the use of this trading software. By using this software, you acknowledge and accept that:
+
+- **Trading involves substantial risk** of loss and is not suitable for all investors
+- **Past performance does not guarantee future results**
+- **This software is for educational and research purposes only**
+- **You are solely responsible** for your trading decisions and outcomes
+- **The author(s) are not liable** for any direct, indirect, incidental, or consequential damages
+- **No warranty or guarantee** is provided regarding accuracy, reliability, or profitability
+
+**USE THIS SOFTWARE AT YOUR OWN RISK AND DISCRETION.**
 
 ## 🚀 Key Features
 
@@ -223,8 +238,8 @@ class CustomMetricsCalculator(MetricsCalculator):
 ### 1. Installation
 
 ```bash
-git clone <repository>
-cd grid-trading-backtest
+git clone https://github.com/WINDY-WINDWARD/trading-strategies-openalgo.git
+cd trading-strategies-openalgo
 pip install -r requirements.txt
 ```
 
@@ -245,7 +260,7 @@ Test the setup with our included test script:
 
 ```bash
 # Test OpenAlgo integration (no API key needed for structure test)
-python test_openalgo.py
+python tests/test_openalgo.py
 
 # Expected output:
 # ✅ Provider initialized with client: <class 'openalgo.api'>
@@ -282,15 +297,15 @@ make live
 ## Architecture Overview
 
 ```
-grid-trading-backtest/
+trading-strategies-openalgo/
 ├── 🤖 GridTradingBot/          # Core trading strategy
+├── 🤖 SupertrendBot/           # Supertrend trading strategy  
 ├── 📊 BacktestEngine/          # Event-driven simulation
 ├── 🌐 WebDashboard/           # Interactive UI
 ├── 📈 Analytics/              # Performance metrics
 ├── 💾 DataProviders/          # Market data sources
 ├── ⚙️ Configuration/          # Parameter management
-├── 🛠️ CLITools/              # Automation scripts
-└── 🐳 Deployment/            # Docker & cloud support
+└── 🛠️ CLITools/              # Automation scripts
 ```
 
 This framework provides everything needed for professional-grade grid trading strategy development, testing, and deployment.
@@ -299,7 +314,7 @@ This framework provides everything needed for professional-grade grid trading st
 ## Project Structure
 
 ```
-backtest-engine/
+trading-strategies-openalgo/
 ├── app/
 │   ├── core/                 # Core backtesting engine
 │   │   ├── backtest_engine.py   # Main engine
@@ -323,22 +338,34 @@ backtest-engine/
 │   │   ├── main.py            # FastAPI application
 │   │   └── routes/            # API endpoints
 │   ├── ui/                  # Web UI
-│   │   ├── templates/         # Jinja2 templates
-│   │   └── static/            # CSS/JS assets
+│   │   └── templates/         # Jinja2 templates
 │   └── utils/               # Utilities
 │       ├── config_loader.py   # Configuration management
 │       ├── logging_config.py  # Logging setup
 │       └── time_helpers.py    # Time utilities
 ├── scripts/                 # CLI scripts
 │   ├── backtest.py           # Run backtest
-│   ├── fetch_data.py         # Fetch market data
-│   └── report.py             # Generate reports
+│   └── launch_web.py         # Launch web dashboard
+├── strats/                  # Trading strategy implementations
+│   ├── grid_trading_bot.py   # Grid trading strategy
+│   ├── supertrend_trading_bot.py # Supertrend strategy
+│   └── trading_bot.py        # Base trading bot
 ├── tests/                   # Test suite
-├── grid_trading_bot.py      # Your original bot (unchanged)
+│   ├── test_openalgo.py      # OpenAlgo integration tests
+│   ├── test_strategy.py      # Strategy tests
+│   └── ...                  # Other test files
+├── templates/               # Web dashboard templates
+│   ├── Griddashboard.html    # Grid trading dashboard
+│   └── SupertrendDashboard.html # Supertrend dashboard
+├── docs/                    # Documentation
+│   ├── GRID_TRADING_GUIDE.md
+│   └── WEB_DASHBOARD_README.md
 ├── config.yaml              # Main configuration
+├── grid_config.json         # Grid strategy config
+├── supertrend_config.json   # Supertrend strategy config
 ├── requirements.txt         # Dependencies
-├── Dockerfile              # Docker container
 ├── Makefile                # Build automation
+├── LICENSE                 # MIT License
 └── README.md               # This file
 ```
 
@@ -356,8 +383,8 @@ data:
   end: "2023-12-31"
   symbol: "RELIANCE"
 
-# Save results
-python -m scripts.backtest --config config.yaml --output ./results
+# Run backtest and analyze results
+python -m scripts.backtest --config config.yaml
 ```
 
 ### Web Interface
@@ -396,7 +423,7 @@ python -m scripts.backtest --config config.yaml --output ./results
 - ✅ Comprehensive performance metrics
 - ✅ Configuration system with environment variables
 - ✅ CLI backtest execution script
-- ✅ Docker containerization setup
+- ✅ Makefile for build automation
 
 **Data Integration:**
 - ✅ **OpenAlgo provider** using official Python package (`openalgo.api`)
@@ -437,4 +464,23 @@ For issues and questions:
 2. Review logs in `backtest.log`
 3. Test with synthetic data first
 4. Verify OpenAlgo connection
+
+## License
+
+This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+
+### MIT License Summary
+
+- ✅ **Free to use** - Commercial and personal use permitted
+- ✅ **Free to modify** - Can be modified and distributed
+- ✅ **Free to distribute** - Can be shared and redistributed
+- ❌ **No warranty** - Software provided "as is" without warranties
+- ❌ **No liability** - Authors not liable for any damages
+
+**Key Points:**
+- The software is provided **"AS IS"** without warranty of any kind
+- Authors are **NOT LIABLE** for any damages or losses
+- Use at your **OWN RISK** and responsibility
+
+For the full license text, see the [LICENSE](LICENSE) file in the project root.
 
