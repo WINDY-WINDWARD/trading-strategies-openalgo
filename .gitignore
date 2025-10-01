@@ -5,3 +5,6 @@ __pycache__
 config.yaml
 .DS_Store
 grid_config.json
+.pytest_cache
+*.log
+.vscode

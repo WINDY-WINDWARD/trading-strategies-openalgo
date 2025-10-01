@@ -5,7 +5,12 @@ Test script for the new initial position strategy feature
 
 import json
 import sys
-from grid_trading_bot import GridTradingBot
+import os
+
+# Add the project root to Python path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from strats.grid_trading_bot import GridTradingBot
 
 def test_initial_position_strategy():
     """Test the new initial position strategy functionality"""

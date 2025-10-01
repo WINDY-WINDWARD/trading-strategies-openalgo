@@ -8,7 +8,7 @@ import os
 from datetime import datetime, timedelta
 
 # Add project root to path
-sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.models.config import OpenAlgoConfig
 from app.data.openalgo_provider import OpenAlgoDataProvider

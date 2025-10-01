@@ -5,7 +5,13 @@ but wait for proper price triggers.
 """
 
 import uuid
+import sys
+import os
 from datetime import datetime, timedelta
+
+# Add the project root to Python path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from app.models.config import AppConfig, BacktestConfig, DataConfig, OpenAlgoConfig, StrategyConfig, UIConfig, LoggingConfig
 from app.models.market_data import Candle
 from app.models.orders import Order, OrderAction, OrderType, OrderStatus

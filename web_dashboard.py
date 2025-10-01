@@ -18,7 +18,7 @@ from typing import Dict, List
 import os
 import csv
 
-from grid_trading_bot import GridTradingBot
+from strats.grid_trading_bot import GridTradingBot
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-change-this'

@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime
 import uuid
 
-from grid_trading_bot import GridTradingBot
+from strats.grid_trading_bot import GridTradingBot
 from .base_strategy import BaseStrategy
 from ..models.market_data import Candle
 from ..models.orders import Order, OrderAction, OrderType, OrderStatus

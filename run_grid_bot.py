@@ -10,7 +10,7 @@ import json
 import sys
 import os
 from datetime import datetime
-from grid_trading_bot import GridTradingBot
+from strats.grid_trading_bot import GridTradingBot
 
 def load_config():
     """Load configuration from grid_config.json"""
