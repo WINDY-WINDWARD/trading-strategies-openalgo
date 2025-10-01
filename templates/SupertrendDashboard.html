@@ -458,13 +458,23 @@
                     filteredData.slice(-maxPoints) : filteredData;
             }
 
+            // Prepare categorical x-axis using only timestamps that actually have OHLC data
+            const pad = (n) => String(n).padStart(2, '0');
+            const formatTime = (ts) => {
+                const d = new Date(ts);
+                return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+            };
+
+            const ohlcTimeSet = new Set(filteredData.map(d => d.timestamp));
+            const categoryX = limitedData.map(d => formatTime(d.timestamp));
+
             // Filter out data points with zero values (NaN replacements) for overlays
-            const validSupertrendData = limitedData.filter(d => d.supertrend !== 0);
-            const validUpperBandData = limitedData.filter(d => d.upper_band !== 0);
-            const validLowerBandData = limitedData.filter(d => d.lower_band !== 0);
+            const validSupertrendData = limitedData.filter(d => d.supertrend !== 0 && ohlcTimeSet.has(d.timestamp));
+            const validUpperBandData = limitedData.filter(d => d.upper_band !== 0 && ohlcTimeSet.has(d.timestamp));
+            const validLowerBandData = limitedData.filter(d => d.lower_band !== 0 && ohlcTimeSet.has(d.timestamp));
 
             const trace = {
-                x: limitedData.map(d => new Date(d.timestamp)),
+                x: categoryX,
                 open: limitedData.map(d => d.open),
                 high: limitedData.map(d => d.high),
                 low: limitedData.map(d => d.low),
@@ -477,7 +487,7 @@
             };
 
             const supertrendTrace = {
-                x: validSupertrendData.map(d => new Date(d.timestamp)),
+                x: validSupertrendData.map(d => formatTime(d.timestamp)),
                 y: validSupertrendData.map(d => d.supertrend),
                 type: 'scatter',
                 mode: 'lines',
@@ -485,11 +495,12 @@
                 line: {
                     color: '#74b9ff',
                     width: 2
-                }
+                },
+                connectgaps: false
             };
 
             const upperBandTrace = {
-                x: validUpperBandData.map(d => new Date(d.timestamp)),
+                x: validUpperBandData.map(d => formatTime(d.timestamp)),
                 y: validUpperBandData.map(d => d.upper_band),
                 type: 'scatter',
                 mode: 'lines',
@@ -499,11 +510,12 @@
                     width: 1,
                     dash: 'dot'
                 },
-                opacity: 0.6
+                opacity: 0.6,
+                connectgaps: false
             };
 
             const lowerBandTrace = {
-                x: validLowerBandData.map(d => new Date(d.timestamp)),
+                x: validLowerBandData.map(d => formatTime(d.timestamp)),
                 y: validLowerBandData.map(d => d.lower_band),
                 type: 'scatter',
                 mode: 'lines',
@@ -513,7 +525,8 @@
                     width: 1,
                     dash: 'dot'
                 },
-                opacity: 0.6
+                opacity: 0.6,
+                connectgaps: false
             };
 
             const layout = {
@@ -526,7 +539,9 @@
                     gridcolor: '#404040',
                     color: '#ffffff',
                     rangeslider: {visible: false}, // Remove range slider for cleaner look
-                    type: 'date',
+                    type: 'category',
+                    categoryorder: 'array',
+                    categoryarray: categoryX,
                     tickmode: 'auto',
                     nticks: 10
                 },
