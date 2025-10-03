@@ -33,16 +33,20 @@ class SupertrendStrategyAdapter(BaseStrategy):
         # Store historical data for the bot's history() calls
         self.historical_data: Optional[pd.DataFrame] = None
         # Track previous Supertrend signal to detect changes
-        self._previous_signal: Optional[str] = None
+        self._previous_signal: Optional[int] = None
         # Track our position separately to sync with backtest engine
         self._current_position: int = 0
         # Buffer configuration
-        self.buffer_enabled: bool = True
-        self.buffer_days: int = 90
-        self.buffer_mode: str = "skip_initial"
-        self.buffer_bars_processed: int = 0
-        self.trading_enabled: bool = False
-        self.required_buffer_bars: int = 0
+        self.buffer_enabled = True
+        self.buffer_days = 90
+        self.buffer_mode = "skip_initial"
+        self.buffer_bars_processed = 0
+        self.trading_enabled = False
+        self.required_buffer_bars = 0
+
+        # Win rate tracking
+        self._total_trades = 0
+        self._winning_trades = 0
 
     def initialize(self, **params: Any):
         """
@@ -151,11 +155,11 @@ class SupertrendStrategyAdapter(BaseStrategy):
             tr[0] = high[0] - low[0]  # Fix first value
             
             # Calculate ATR using pandas ewm (fastest for this operation)
-            atr = pd.Series(tr).ewm(span=self.atr_period, adjust=False).mean().values
+            atr = pd.Series(tr).ewm(span=self.bot.atr_period, adjust=False).mean().values
             
             # Calculate basic bands
-            basic_upper = high + (self.atr_multiplier * atr)
-            basic_lower = low - (self.atr_multiplier * atr)
+            basic_upper = high + (self.bot.atr_multiplier * atr)
+            basic_lower = low - (self.bot.atr_multiplier * atr)
             
             # Initialize arrays
             final_upper = np.zeros(length)
@@ -338,20 +342,22 @@ class SupertrendStrategyAdapter(BaseStrategy):
                     else:
                         logger.debug(f"NO BUY ACTION - Signal: {current_signal}, Signal changed: {signal_changed}, "
                                    f"Position: {self._current_position}")
+
                 else:
                     # Have position: check for exit conditions
                     should_sell = False
                     sell_reason = ""
+                    trade_closed = False
+                    trade_won = False
+                    entry_price = None
                     
                     # Check for signal change to down
-                    if current_signal == -1 and signal_changed:  # Changed from '-1' to -1
+                    if current_signal == -1 and signal_changed:
                         should_sell = True
                         sell_reason = "signal changed to down"
-                    
                     # Check take profit and stop loss (only if we have trades)
                     elif len(self.bot.state['trades']) > 0:
                         entry_price = self.bot.state['trades'][-1]['price']
-                        
                         if current_price >= entry_price * (1 + self.bot.take_profit_pct / 100):
                             should_sell = True
                             sell_reason = f"take profit triggered at {current_price} (entry: {entry_price})"
@@ -368,6 +374,10 @@ class SupertrendStrategyAdapter(BaseStrategy):
                             pnl_pct = ((current_price - entry_price) / entry_price) * 100
                             logger.debug(f"SELL ACTION P&L - Entry: {entry_price}, Current: {current_price}, "
                                        f"P&L: {pnl_pct:.2f}%")
+                            # Win rate logic: count only if trade is closed (SELL)
+                            self._total_trades += 1
+                            if current_price > entry_price:
+                                self._winning_trades += 1
                         logger.info(f"Supertrend signal: SELL ({sell_reason})")
                         self.bot.place_market_order('sell', abs(self._current_position))
                         logger.debug(f"SELL ORDER PLACED - Quantity: {abs(self._current_position)}, Type: market")
@@ -376,7 +386,7 @@ class SupertrendStrategyAdapter(BaseStrategy):
                                    f"Position: {self._current_position}, Should sell: {should_sell}")
 
                 # Update previous signal
-                self._previous_signal = current_signal
+                self._previous_signal = int(current_signal) if current_signal is not None else None
 
         except Exception as e:
             logger.error(f"Error in Supertrend strategy logic: {e}")
@@ -467,29 +477,33 @@ class SupertrendStrategyAdapter(BaseStrategy):
                 
                 if self._previous_signal != current_signal:
                     logger.debug(f"Supertrend signal (buffer): {self._previous_signal} -> {current_signal}")
-                    self._previous_signal = current_signal
+                    self._previous_signal = int(current_signal) if current_signal is not None else None
                     
         except Exception as e:
             logger.error(f"Error calculating Supertrend for display: {e}")
 
     def get_state(self) -> dict:
         """
-        Get current strategy state including bot state and position tracking.
+        Get current strategy state including bot state, position tracking, and win rate.
         """
         base_state = super().get_state()
         if self.bot:
+            win_rate = float((self._winning_trades / self._total_trades * 100) if self._total_trades > 0 else 0.0)
             base_state.update({
-                'bot_position': self.bot.state['position'],
-                'adapter_position': self._current_position,
-                'bot_trades': len(self.bot.state['trades']),
-                'recent_fills': len(self.recent_fills),
-                'historical_bars': len(self.historical_data) if self.historical_data is not None else 0,
-                'previous_signal': self._previous_signal,
-                'position_sync': self.bot.state['position'] == self._current_position,
-                'buffer_enabled': self.buffer_enabled,
-                'buffer_bars_processed': self.buffer_bars_processed,
-                'required_buffer_bars': self.required_buffer_bars,
-                'trading_enabled': self.trading_enabled,
-                'buffer_progress': f"{self.buffer_bars_processed}/{self.required_buffer_bars}" if self.buffer_enabled else "N/A"
+                'bot_position': int(self.bot.state['position']),
+                'adapter_position': int(self._current_position),
+                'bot_trades': int(len(self.bot.state['trades'])),
+                'recent_fills': int(len(self.recent_fills)),
+                'historical_bars': int(len(self.historical_data)) if self.historical_data is not None else 0,
+                'previous_signal': int(self._previous_signal) if self._previous_signal is not None else None,
+                'position_sync': bool(self.bot.state['position'] == self._current_position),
+                'buffer_enabled': bool(self.buffer_enabled),
+                'buffer_bars_processed': int(self.buffer_bars_processed),
+                'required_buffer_bars': int(self.required_buffer_bars),
+                'trading_enabled': bool(self.trading_enabled),
+                'buffer_progress': f"{self.buffer_bars_processed}/{self.required_buffer_bars}" if self.buffer_enabled else "N/A",
+                'win_rate': win_rate,
+                'winning_trades': int(self._winning_trades),
+                'total_trades': int(self._total_trades)
             })
         return base_state

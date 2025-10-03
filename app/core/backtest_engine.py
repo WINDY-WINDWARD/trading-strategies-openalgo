@@ -496,8 +496,25 @@ class BacktestEngine:
             # In grid trading, each order execution is meaningful
             side = "BUY" if order.action == OrderAction.BUY else "SELL"
             
+            # Get realized P&L from the most recent portfolio trade
+            pnl = 0.0
+            pnl_pct = 0.0
+            if order.action == OrderAction.SELL and len(self.portfolio.trades) > 0:
+                # Get the last trade from portfolio (which is this one)
+                last_portfolio_trade = self.portfolio.trades[-1]
+                if last_portfolio_trade['order_id'] == order.id:
+                    pnl = last_portfolio_trade['realized_pnl']
+                    # Calculate P&L percentage based on the price movement
+                    if last_portfolio_trade.get('realized_pnl', 0) != 0:
+                        # Get the average cost from the position before this trade
+                        # pnl_pct is calculated as (sell_price - avg_cost) / avg_cost * 100
+                        # We can derive avg_cost from pnl: avg_cost = sell_price - (pnl / quantity)
+                        avg_cost = fill_event.fill_price - (pnl / fill_event.fill_quantity)
+                        if avg_cost > 0:
+                            pnl_pct = ((fill_event.fill_price - avg_cost) / avg_cost) * 100
+            
             # For display purposes, we'll show the order execution
-            # PnL calculation would require pairing with opposite orders
+            # PnL is calculated for SELL orders based on portfolio realized P&L
             trade = Trade(
                 id=order.id,  # Use order ID as trade ID for easier tracking
                 symbol=order.symbol,
@@ -507,8 +524,8 @@ class BacktestEngine:
                 exit_price=fill_event.fill_price,
                 quantity=fill_event.fill_quantity,
                 side=side,  # Show actual side (BUY/SELL)
-                pnl=0.0,  # Individual order has no PnL
-                pnl_pct=0.0,
+                pnl=pnl,  # Realized P&L for SELL orders from portfolio, 0 for BUY orders
+                pnl_pct=pnl_pct,
                 fees=fill_event.commission + tax_amount,  # Include tax in fees
                 duration_seconds=duration_seconds
             )
@@ -564,6 +581,14 @@ class BacktestEngine:
         # Convert active orders to list
         all_orders = list(self.active_orders.values())
         
+        # Get strategy state if available
+        strategy_state = None
+        if self.strategy and hasattr(self.strategy, 'get_state'):
+            try:
+                strategy_state = self.strategy.get_state()
+            except Exception as e:
+                logger.warning(f"Failed to get strategy state: {e}")
+        
         # Create result
         result = BacktestResult(
             run_id=self.run_id,
@@ -576,6 +601,7 @@ class BacktestEngine:
             orders=all_orders,
             equity_curve=equity_curve,
             metrics=metrics,
+            strategy_state=strategy_state,
             total_candles=self.total_candles,
             execution_time=execution_time
         )

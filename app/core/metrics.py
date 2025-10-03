@@ -91,19 +91,26 @@ class MetricsCalculator:
         total_trades = len(trades)
         winning_trades = len([t for t in trades if t.pnl > 0])
         losing_trades = len([t for t in trades if t.pnl < 0])
-        win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
+        win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0.0
+        
+        # Debug: Log trade details
+        logger.info(f"Total trades: {total_trades}")
+        if total_trades > 0:
+            pnl_values = [t.pnl for t in trades[:10]]  # First 10 trades
+            logger.info(f"First 10 trade PnL values: {pnl_values}")
+            logger.info(f"Trades with pnl > 0: {winning_trades}, Trades with pnl < 0: {losing_trades}")
         
         # P&L metrics
         total_fees = sum(t.fees for t in trades)
         peak_capital = max(point.equity for point in equity_curve)
         
         # Average trade metrics
-        avg_trade_pnl = np.mean([t.pnl for t in trades]) if trades else 0
+        avg_trade_pnl = float(np.mean([t.pnl for t in trades])) if trades else 0.0
         winning_pnl = [t.pnl for t in trades if t.pnl > 0]
         losing_pnl = [t.pnl for t in trades if t.pnl < 0]
         
-        avg_win_pnl = np.mean(winning_pnl) if winning_pnl else 0
-        avg_loss_pnl = np.mean(losing_pnl) if losing_pnl else 0
+        avg_win_pnl = float(np.mean(winning_pnl)) if winning_pnl else 0.0
+        avg_loss_pnl = float(np.mean(losing_pnl)) if losing_pnl else 0.0
         
         # Profit factor
         gross_profit = sum(winning_pnl) if winning_pnl else 0
@@ -111,14 +118,19 @@ class MetricsCalculator:
         profit_factor = gross_profit / gross_loss if gross_loss > 0 else None
         
         # Trade duration
-        avg_trade_duration = np.mean([t.duration_hours for t in trades]) if trades else 0
+        avg_trade_duration = float(np.mean([t.duration_hours for t in trades])) if trades else 0.0
         
         # Consecutive wins/losses
         max_consecutive_wins, max_consecutive_losses = self._calculate_consecutive_trades(trades)
         
         # Largest win/loss
-        largest_win = max([t.pnl for t in trades], default=0)
-        largest_loss = min([t.pnl for t in trades], default=0)
+        largest_win = float(max([t.pnl for t in trades], default=0))
+        largest_loss = float(min([t.pnl for t in trades], default=0))
+        
+        # Debug logging
+        logger.info(f"Metrics calculated - Winning trades: {winning_trades}, Losing trades: {losing_trades}")
+        logger.info(f"Metrics calculated - Max consecutive wins: {max_consecutive_wins}, Max consecutive losses: {max_consecutive_losses}")
+        logger.info(f"Metrics calculated - Largest win: {largest_win}, Largest loss: {largest_loss}")
         
         return PerformanceMetrics(
             total_return=total_return,
@@ -223,7 +235,7 @@ class MetricsCalculator:
         daily_vol = np.std(returns, ddof=1)
         
         # Annualize assuming 252 trading days per year
-        annualized_vol = daily_vol * np.sqrt(252) * 100
+        annualized_vol = float(daily_vol * np.sqrt(252) * 100)
         
         return annualized_vol
     

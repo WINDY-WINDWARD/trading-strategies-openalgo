@@ -132,7 +132,7 @@ class AppConfig(BaseModel):
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
-        return self.dict()
+        return self.model_dump(mode='python')
 
     @classmethod
     def from_dict(cls, config_dict: Dict[str, Any]) -> 'AppConfig':

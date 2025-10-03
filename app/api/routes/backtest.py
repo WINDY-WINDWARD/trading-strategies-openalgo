@@ -101,10 +101,10 @@ async def run_backtest_task(app_config: AppConfig):
         strategy_type = app_config.strategy.type
         if strategy_type == "grid":
             strategy = GridStrategyAdapter()
-            strategy.initialize(**app_config.strategy.dict(), symbol=app_config.data.symbol, exchange=app_config.data.exchange)
+            strategy.initialize(**app_config.strategy.model_dump(), symbol=app_config.data.symbol, exchange=app_config.data.exchange)
         elif strategy_type == "supertrend":
             strategy = SupertrendStrategyAdapter()
-            strategy.initialize(**app_config.strategy.dict(), symbol=app_config.data.symbol, exchange=app_config.data.exchange)
+            strategy.initialize(**app_config.strategy.model_dump(), symbol=app_config.data.symbol, exchange=app_config.data.exchange)
         else:
             raise ValueError(f"Unsupported strategy type: {strategy_type}")
 
@@ -138,7 +138,25 @@ async def run_backtest_task(app_config: AppConfig):
         result_dict = result.to_dict()
         result_dict['candles'] = [candle.to_dict() for candle in candles]
         results_storage[run_id] = result_dict
-        await manager.broadcast({"type": "result", "data": results_storage[run_id], "run_id": run_id})
+        
+        # Ensure data is JSON serializable before broadcasting
+        import json
+        try:
+            json.dumps(result_dict)  # Test serialization
+            await manager.broadcast({"type": "result", "data": results_storage[run_id], "run_id": run_id})
+        except (TypeError, ValueError) as e:
+            logger.error(f"JSON serialization failed for run_id {run_id}: {e}")
+            # Try to identify problematic data
+            problematic_keys = []
+            for key, value in result_dict.items():
+                try:
+                    json.dumps(value)
+                except (TypeError, ValueError):
+                    problematic_keys.append(key)
+            logger.error(f"Problematic keys: {problematic_keys}")
+            # Send error message instead
+            await manager.broadcast({"type": "error", "message": f"Results serialization failed: {str(e)}", "run_id": run_id})
+        
         logger.info(f"Backtest {run_id} completed successfully.")
 
     except Exception as e:
@@ -196,7 +214,14 @@ async def get_results(run_id: str):
     """Retrieve the results of a completed backtest."""
     result = results_storage.get(run_id)
     if result:
-        return JSONResponse(content=result)
+        # Ensure data is JSON serializable
+        import json
+        try:
+            json.dumps(result)  # Test serialization
+            return JSONResponse(content=result)
+        except (TypeError, ValueError) as e:
+            logger.error(f"JSON serialization failed for stored results run_id {run_id}: {e}")
+            return JSONResponse(status_code=500, content={"error": f"Results data is not JSON serializable: {str(e)}"})
     return JSONResponse(status_code=404, content={"error": "Results not found"})
 
 
@@ -205,11 +230,11 @@ async def get_config():
     """Get the current application configuration."""
     try:
         config = load_config()
-        return JSONResponse(content=config.dict())
+        return JSONResponse(content=config.model_dump(mode='python'))
     except FileNotFoundError:
         # If no config exists, return a default one
         config = get_default_config()
-        return JSONResponse(content=config.dict())
+        return JSONResponse(content=config.model_dump(mode='python'))
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 

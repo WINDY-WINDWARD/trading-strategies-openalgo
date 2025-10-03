@@ -102,7 +102,18 @@ class PerformanceMetrics(BaseModel):
     
     def to_dict(self) -> dict:
         """Convert to dictionary."""
-        return self.dict()
+        # Use model_dump for Pydantic v2
+        result = self.model_dump(mode='python', exclude_none=False)
+        # Debug logging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"PerformanceMetrics.to_dict() - winning_trades: {result.get('winning_trades')}, "
+                    f"losing_trades: {result.get('losing_trades')}, "
+                    f"largest_win: {result.get('largest_win')}, "
+                    f"largest_loss: {result.get('largest_loss')}, "
+                    f"max_consecutive_wins: {result.get('max_consecutive_wins')}, "
+                    f"max_consecutive_losses: {result.get('max_consecutive_losses')}")
+        return result
 
 
 class EquityPoint(BaseModel):
@@ -139,6 +150,7 @@ class BacktestResult(BaseModel):
     orders: List[Order] = Field(default_factory=list, description="All orders")
     equity_curve: List[EquityPoint] = Field(default_factory=list, description="Equity curve data")
     metrics: PerformanceMetrics = Field(..., description="Performance metrics")
+    strategy_state: Optional[Dict[str, Any]] = Field(None, description="Strategy state at end of backtest")
     
     # Metadata
     total_candles: int = Field(..., description="Total number of candles processed")
@@ -163,6 +175,7 @@ class BacktestResult(BaseModel):
             'orders': [order.to_dict() for order in self.orders],
             'equity_curve': [point.to_dict() for point in self.equity_curve],
             'metrics': self.metrics.to_dict(),
+            'strategy_state': self.strategy_state,
             'total_candles': self.total_candles,
             'execution_time': self.execution_time
         }

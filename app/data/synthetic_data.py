@@ -115,11 +115,11 @@ class SyntheticDataProvider:
             
             candle = Candle(
                 timestamp=timestamp,
-                open=round(open_price, 2),
-                high=round(high_price, 2),
-                low=round(low_price, 2),
-                close=round(close_price, 2),
-                volume=round(volume),
+                open=float(round(open_price, 2)),
+                high=float(round(high_price, 2)),
+                low=float(round(low_price, 2)),
+                close=float(round(close_price, 2)),
+                volume=int(round(volume)),
                 symbol=symbol,
                 exchange=exchange
             )
