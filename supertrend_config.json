@@ -1,6 +1,6 @@
 {
     "api_settings": {
-        "api_key": "89fd8eaa346fb5e91bcbe8a3490b3d7b9c9c7defbe2babefd3037f11a41376a7",
+        "api_key": "4b07e0356d16101553f91160b8957d5a48acb8fe4db9e1720b204f2b6bf50dcd",
         "host": "http://127.0.0.1:5000"
     },
     "trading_settings": {
@@ -11,7 +11,11 @@
         "take_profit_pct": 5.0,
         "stop_loss_pct": 3.0,
         "atr_period": 10,
-        "atr_multiplier": 3.0
+        "atr_multiplier": 3.0,
+        "max_order_amount": 5000.0,
+        "buffer_enabled": true,
+        "buffer_days": 90,
+        "buffer_mode": "skip_initial"
     },
     "execution_settings": {
         "state_file": "supertrend_state.json",

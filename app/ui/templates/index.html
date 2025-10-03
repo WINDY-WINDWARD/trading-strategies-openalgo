@@ -84,6 +84,7 @@ A<!DOCTYPE html>
                 <div class="card mb-4">
                     <div class="card-body">
                         <button id="run-backtest-btn" class="btn btn-primary w-100">Run Backtest</button>
+                        <button id="cancel-backtest-btn" class="btn btn-danger w-100 mt-2" style="display: none;">Cancel Backtest</button>
                         <div id="progress-container" class="mt-3" style="display: none;">
                             <div class="progress" role="progressbar">
                                 <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%"></div>
@@ -114,8 +115,10 @@ A<!DOCTYPE html>
                 <div class="card">
                     <div class="card-body">
                         <h6 class="card-title">Configuration Editor</h6>
-                        <textarea id="config-editor" class="form-control" rows="15" style="font-family: monospace; font-size: 0.8rem;"></textarea>
-                        <button id="save-config-btn" class="btn btn-secondary w-100 mt-2">Save Config</button>
+                        <form id="config-form">
+                            <div id="config-fields"></div>
+                            <button type="submit" class="btn btn-secondary w-100 mt-2" id="save-config-btn">Save Config</button>
+                        </form>
                     </div>
                 </div>
             </div>
@@ -236,8 +239,10 @@ A<!DOCTYPE html>
         document.addEventListener('DOMContentLoaded', function () {
             const wsStatus = document.getElementById('ws-status');
             const runBtn = document.getElementById('run-backtest-btn');
+            const cancelBtn = document.getElementById('cancel-backtest-btn');
             const saveBtn = document.getElementById('save-config-btn');
-            const configEditor = document.getElementById('config-editor');
+            const configForm = document.getElementById('config-form');
+            const configFields = document.getElementById('config-fields');
             const statusBar = document.getElementById('status-text');
             const progressContainer = document.getElementById('progress-container');
             const progressBar = document.getElementById('progress-bar');
@@ -274,12 +279,21 @@ A<!DOCTYPE html>
                             updateStatus('Backtest completed.');
                             displayResults(msg.data);
                             runBtn.disabled = false;
+                            cancelBtn.style.display = 'none';
+                            progressContainer.style.display = 'none';
+                            break;
+                        case 'cancelled':
+                            updateStatus('Backtest cancelled.');
+                            alert('Backtest was cancelled successfully.');
+                            runBtn.disabled = false;
+                            cancelBtn.style.display = 'none';
                             progressContainer.style.display = 'none';
                             break;
                         case 'error':
                             updateStatus(`Error: ${msg.message}`);
                             alert(`Backtest Error: ${msg.message}`);
                             runBtn.disabled = false;
+                            cancelBtn.style.display = 'none';
                             progressContainer.style.display = 'none';
                             break;
                     }
@@ -525,11 +539,97 @@ A<!DOCTYPE html>
             }
 
             // --- API Calls ---
+
+            // Helper: Recursively create form fields for config object
+            function createConfigFields(obj, parentKey = '') {
+                let html = '';
+                for (const key in obj) {
+                    if (!obj.hasOwnProperty(key)) continue;
+                    const value = obj[key];
+                    const fieldId = parentKey ? `${parentKey}.${key}` : key;
+                    const label = `<label class="form-label fw-bold mt-2" for="${fieldId}">${fieldId.replace(/\./g, ' > ')}</label>`;
+                    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+                        html += `<fieldset class="border rounded p-2 mb-2"><legend class="fs-6">${fieldId}</legend>`;
+                        html += createConfigFields(value, fieldId);
+                        html += `</fieldset>`;
+                    } else {
+                        let inputType = 'text';
+                        let step = '';
+                        if (typeof value === 'number') {
+                            inputType = 'number';
+                            step = 'step="any"';
+                        } else if (typeof value === 'boolean') {
+                            inputType = 'checkbox';
+                        }
+                        html += `<div class="mb-2">${label}`;
+                        if (inputType === 'checkbox') {
+                            html += `<input type="checkbox" class="form-check-input ms-2" id="${fieldId}" name="${fieldId}" ${value ? 'checked' : ''}>`;
+                        } else {
+                            html += `<input type="${inputType}" class="form-control" id="${fieldId}" name="${fieldId}" value="${inputType === 'number' ? value : String(value).replace(/"/g, '&quot;')}" ${step}>`;
+                        }
+                        html += `</div>`;
+                    }
+                }
+                return html;
+            }
+
+            // Helper: Set form fields from config object
+            function setFormFields(obj, parentKey = '') {
+                for (const key in obj) {
+                    if (!obj.hasOwnProperty(key)) continue;
+                    const value = obj[key];
+                    const fieldId = parentKey ? `${parentKey}.${key}` : key;
+                    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+                        setFormFields(value, fieldId);
+                    } else {
+                        const input = document.getElementById(fieldId);
+                        if (input) {
+                            if (input.type === 'checkbox') {
+                                input.checked = !!value;
+                            } else {
+                                input.value = value;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Helper: Get config object from form fields
+            function getFormConfig(obj, parentKey = '') {
+                const result = Array.isArray(obj) ? [] : {};
+                for (const key in obj) {
+                    if (!obj.hasOwnProperty(key)) continue;
+                    const value = obj[key];
+                    const fieldId = parentKey ? `${parentKey}.${key}` : key;
+                    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+                        result[key] = getFormConfig(value, fieldId);
+                    } else {
+                        const input = document.getElementById(fieldId);
+                        if (input) {
+                            if (input.type === 'checkbox') {
+                                result[key] = input.checked;
+                            } else if (input.type === 'number') {
+                                result[key] = input.value === '' ? null : Number(input.value);
+                            } else {
+                                result[key] = input.value;
+                            }
+                        } else {
+                            result[key] = value;
+                        }
+                    }
+                }
+                return result;
+            }
+
+            let loadedConfig = null;
+
             async function loadConfig() {
                 try {
                     const response = await fetch('/api/config');
                     const config = await response.json();
-                    configEditor.value = jsyaml.dump(config);
+                    loadedConfig = config;
+                    configFields.innerHTML = createConfigFields(config);
+                    setFormFields(config);
                 } catch (e) {
                     console.error("Failed to load config", e);
                     alert("Failed to load configuration.");
@@ -538,7 +638,8 @@ A<!DOCTYPE html>
 
             async function saveConfig() {
                 try {
-                    const config = jsyaml.load(configEditor.value);
+                    if (!loadedConfig) throw new Error('Config not loaded');
+                    const config = getFormConfig(loadedConfig);
                     const response = await fetch('/api/config', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -558,6 +659,7 @@ A<!DOCTYPE html>
 
             async function runBacktest() {
                 runBtn.disabled = true;
+                cancelBtn.style.display = 'block';
                 updateStatus('Starting backtest...');
                 progressContainer.style.display = 'block';
                 progressBar.style.width = '0%';
@@ -584,13 +686,46 @@ A<!DOCTYPE html>
                     console.error("Failed to run backtest", e);
                     alert(`Failed to run backtest: ${e.message}`);
                     runBtn.disabled = false;
+                    cancelBtn.style.display = 'none';
                     progressContainer.style.display = 'none';
+                }
+            }
+
+            async function cancelBacktest() {
+                if (!currentRunId) {
+                    alert('No active backtest to cancel.');
+                    return;
+                }
+
+                try {
+                    cancelBtn.disabled = true;
+                    updateStatus('Cancelling backtest...');
+                    
+                    const response = await fetch(`/api/backtest/${currentRunId}/cancel`, { method: 'POST' });
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log('Cancel request sent:', data.message);
+                    } else {
+                        const error = await response.json();
+                        throw new Error(error.error || 'Failed to cancel backtest');
+                    }
+                } catch (e) {
+                    console.error("Failed to cancel backtest", e);
+                    alert(`Failed to cancel backtest: ${e.message}`);
+                    cancelBtn.disabled = false;
                 }
             }
 
             // --- Event Listeners ---
             runBtn.addEventListener('click', runBacktest);
-            saveBtn.addEventListener('click', saveConfig);
+            cancelBtn.addEventListener('click', cancelBacktest);
+
+            if (configForm) {
+                configForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    saveConfig();
+                });
+            }
             
             // Chart update functionality
             const updateChartBtn = document.getElementById('updateChart');

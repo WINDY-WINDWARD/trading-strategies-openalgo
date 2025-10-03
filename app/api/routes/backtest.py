@@ -17,7 +17,7 @@ import io
 from ...utils.config_loader import load_config, save_config, get_default_config
 from ...models.config import AppConfig
 from ...core.backtest_engine import BacktestEngine
-from ...strategies import GridStrategyAdapter
+from ...strategies import GridStrategyAdapter, SupertrendStrategyAdapter
 from ...data.synthetic_data import SyntheticDataProvider
 from ...data.openalgo_provider import OpenAlgoDataProvider
 from ..websockets import ConnectionManager
@@ -29,6 +29,9 @@ manager = ConnectionManager()
 # In-memory storage for backtest results
 # In a production system, this would be a database or a persistent cache.
 results_storage: Dict[str, Any] = {}
+
+# In-memory storage for running backtest engines (for cancellation)
+running_engines: Dict[str, BacktestEngine] = {}
 
 
 @router.websocket("/ws")
@@ -95,11 +98,21 @@ async def run_backtest_task(app_config: AppConfig):
         await manager.broadcast({"type": "status", "message": f"Loaded {len(candles)} candles. Initializing strategy...", "run_id": run_id})
 
         # --- Strategy Initialization ---
-        strategy = GridStrategyAdapter()
-        strategy.initialize(**app_config.strategy.dict(), symbol=app_config.data.symbol, exchange=app_config.data.exchange)
+        strategy_type = app_config.strategy.type
+        if strategy_type == "grid":
+            strategy = GridStrategyAdapter()
+            strategy.initialize(**app_config.strategy.dict(), symbol=app_config.data.symbol, exchange=app_config.data.exchange)
+        elif strategy_type == "supertrend":
+            strategy = SupertrendStrategyAdapter()
+            strategy.initialize(**app_config.strategy.dict(), symbol=app_config.data.symbol, exchange=app_config.data.exchange)
+        else:
+            raise ValueError(f"Unsupported strategy type: {strategy_type}")
 
         # --- Engine Setup ---
         engine = BacktestEngine(app_config)
+        
+        # Register the engine for cancellation
+        running_engines[run_id] = engine
         
         # Define a progress callback for the engine
         async def progress_callback(status: Dict[str, Any]):
@@ -115,6 +128,12 @@ async def run_backtest_task(app_config: AppConfig):
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, engine.run_backtest, candles)
         
+        # Check if backtest was cancelled
+        if not engine.is_running:
+            logger.info(f"Backtest {run_id} was cancelled.")
+            await manager.broadcast({"type": "cancelled", "message": "Backtest was cancelled by user", "run_id": run_id})
+            return
+        
         # Store and broadcast final result with candles data
         result_dict = result.to_dict()
         result_dict['candles'] = [candle.to_dict() for candle in candles]
@@ -125,6 +144,51 @@ async def run_backtest_task(app_config: AppConfig):
     except Exception as e:
         logger.error(f"Error during backtest run {run_id}: {e}", exc_info=True)
         await manager.broadcast({"type": "error", "message": str(e), "run_id": run_id})
+    finally:
+        # Always clean up the running engine reference
+        if run_id in running_engines:
+            del running_engines[run_id]
+
+
+@router.post("/api/backtest/{run_id}/cancel")
+async def cancel_backtest_endpoint(run_id: str):
+    """
+    Cancel a running backtest.
+    """
+    try:
+        if run_id not in running_engines:
+            return JSONResponse(
+                status_code=404,
+                content={"error": f"No running backtest found with run_id: {run_id}"}
+            )
+        
+        engine = running_engines[run_id]
+        engine.stop()
+        
+        logger.info(f"Backtest cancellation requested for run_id: {run_id}")
+        await manager.broadcast({"type": "status", "message": "Cancelling backtest...", "run_id": run_id})
+        
+        return JSONResponse(
+            status_code=200,
+            content={"message": f"Backtest {run_id} cancellation requested"}
+        )
+    except Exception as e:
+        logger.error(f"Failed to cancel backtest {run_id}: {e}", exc_info=True)
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@router.get("/api/backtest/running")
+async def get_running_backtests():
+    """
+    Get list of currently running backtests.
+    """
+    try:
+        running_list = [{"run_id": run_id, "is_running": engine.is_running} 
+                       for run_id, engine in running_engines.items()]
+        return JSONResponse(content={"running_backtests": running_list})
+    except Exception as e:
+        logger.error(f"Failed to get running backtests: {e}", exc_info=True)
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 
 @router.get("/api/results/{run_id}")

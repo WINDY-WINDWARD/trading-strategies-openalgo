@@ -15,9 +15,9 @@ from datetime import datetime
 from app.utils.config_loader import load_config, save_config, get_default_config
 from app.utils.logging_config import setup_logging
 from app.data.synthetic_data import SyntheticDataProvider
-from app.data.openalgo_provider import SyncOpenAlgoDataProvider
+from app.data.openalgo_provider import OpenAlgoDataProvider
 from app.core.backtest_engine import BacktestEngine
-from app.strategies.grid_strategy_adapter import GridStrategyAdapter
+from app.strategies import GridStrategyAdapter, SupertrendStrategyAdapter
 
 
 @click.command()
@@ -63,7 +63,7 @@ def main(config, output, verbose):
         else:
             # Use OpenAlgo data
             click.echo("Using OpenAlgo data")
-            data_provider = SyncOpenAlgoDataProvider(app_config.openalgo)
+            data_provider = OpenAlgoDataProvider(app_config.openalgo)
             
             start_date = datetime.fromisoformat(app_config.data.start)
             end_date = datetime.fromisoformat(app_config.data.end)
@@ -82,22 +82,44 @@ def main(config, output, verbose):
         
         click.echo(f"Loaded {len(candles)} candles")
         
-        # Initialize strategy
-        click.echo("Initializing grid trading strategy...")
-        strategy = GridStrategyAdapter()
-        strategy.initialize(
-            # Pass all strategy parameters from config
-            symbol=app_config.data.symbol,
-            exchange=app_config.data.exchange,
-            grid_levels=app_config.strategy.grid_levels,
-            grid_spacing_pct=app_config.strategy.grid_spacing_pct,
-            order_amount=app_config.strategy.order_amount,
-            grid_type=app_config.strategy.grid_type,
-            stop_loss_pct=app_config.strategy.stop_loss_pct,
-            take_profit_pct=app_config.strategy.take_profit_pct,
-            auto_reset=app_config.strategy.auto_reset,
-            initial_position_strategy=app_config.strategy.initial_position_strategy
-        )
+        # Initialize strategy based on configuration
+        strategy_type = app_config.strategy.type
+        click.echo(f"Initializing {strategy_type} trading strategy...")
+        
+        if strategy_type == "grid":
+            strategy = GridStrategyAdapter()
+            strategy.initialize(
+                # Pass all strategy parameters from config
+                symbol=app_config.data.symbol,
+                exchange=app_config.data.exchange,
+                grid_levels=app_config.strategy.grid_levels,
+                grid_spacing_pct=app_config.strategy.grid_spacing_pct,
+                order_amount=app_config.strategy.order_amount,
+                grid_type=app_config.strategy.grid_type,
+                stop_loss_pct=app_config.strategy.stop_loss_pct,
+                take_profit_pct=app_config.strategy.take_profit_pct,
+                auto_reset=app_config.strategy.auto_reset,
+                initial_position_strategy=app_config.strategy.initial_position_strategy
+            )
+        elif strategy_type == "supertrend":
+            strategy = SupertrendStrategyAdapter()
+            strategy.initialize(
+                # Pass all strategy parameters from config
+                symbol=app_config.data.symbol,
+                exchange=app_config.data.exchange,
+                timeframe=app_config.data.timeframe,
+                stop_loss_pct=app_config.strategy.stop_loss_pct,
+                take_profit_pct=app_config.strategy.take_profit_pct,
+                atr_period=app_config.strategy.atr_period,
+                atr_multiplier=app_config.strategy.atr_multiplier,
+                # Buffer configuration
+                buffer_enabled=app_config.strategy.buffer_enabled,
+                buffer_days=app_config.strategy.buffer_days,
+                buffer_mode=app_config.strategy.buffer_mode
+            )
+        else:
+            click.echo(f"ERROR: Unsupported strategy type: {strategy_type}", err=True)
+            sys.exit(1)
         
         # Initialize backtest engine
         engine = BacktestEngine(app_config)

@@ -6,129 +6,14 @@ Adapter to wrap the existing GridTradingBot for use in the backtesting engine.
 import logging
 from typing import Any, Dict, List, Optional
 from datetime import datetime
-import uuid
 
 from strats.grid_trading_bot import GridTradingBot
 from .base_strategy import BaseStrategy
+from .mock_openalgo_client import MockOpenAlgoClient
 from ..models.market_data import Candle
 from ..models.orders import Order, OrderAction, OrderType, OrderStatus
 
 logger = logging.getLogger(__name__)
-
-
-class MockOpenAlgoClient:
-    """
-A mock of the OpenAlgo client to intercept API calls from the GridTradingBot
-and route them through the backtesting engine.
-"""
-
-    def __init__(self, adapter: 'GridStrategyAdapter'):
-        self._adapter = adapter
-        self.order_id_counter = 1
-
-    def quotes(self, symbol: str, exchange: str) -> Dict[str, Any]:
-        """Simulate fetching the latest quote."""
-        if self._adapter.current_bar:
-            return {
-                'status': 'success',
-                'data': {'ltp': self._adapter.current_bar.close}
-            }
-        return {'status': 'error', 'message': 'No current bar data'}
-
-    def placeorder(self, **kwargs) -> Dict[str, Any]:
-        """Capture an order placement and send it to the backtest engine."""
-        action = OrderAction.BUY if kwargs.get('action') == 'BUY' else OrderAction.SELL
-        price_type = kwargs.get('price_type', 'LIMIT')
-        quantity = int(kwargs.get('quantity', 0))
-        price = float(kwargs.get('price', 0.0))
-
-        if price_type == 'LIMIT':
-            order_type = OrderType.LIMIT
-        elif price_type == 'MARKET':
-            order_type = OrderType.MARKET
-        else:
-            logger.error(f"Unsupported order type from grid bot: {price_type}")
-            return {'status': 'error', 'message': 'Unsupported order type'}
-
-        if quantity <= 0:
-            logger.error(f"Invalid order quantity from grid bot: {quantity}")
-            return {'status': 'error', 'message': 'Invalid quantity'}
-
-        # Create a unique client order ID for the bot
-        client_order_id = str(uuid.uuid4())
-
-        order = Order(
-            id=client_order_id,
-            symbol=self._adapter.bot.symbol,
-            exchange=self._adapter.bot.exchange,
-            action=action,
-            order_type=order_type,
-            quantity=quantity,
-            price=price if order_type == OrderType.LIMIT else None
-        )
-
-        logger.info(
-            f"Adapter: Intercepted order from bot. Submitting to engine: "
-            f"{order.action.value} {order.quantity} {order.symbol} @ {order.price or 'MARKET'}"
-        )
-        # Submit the order via the adapter's context
-        self._adapter.submit_order(order)
-
-        # The bot expects an order ID back. We use our client_order_id.
-        return {'status': 'success', 'orderid': client_order_id}
-
-    def cancelallorder(self, strategy: str) -> Dict[str, Any]:
-        """Simulate canceling all orders for the strategy."""
-        cancelled_ids = self._adapter.cancel_all_orders()
-        logger.info(f"Adapter: Intercepted 'cancel all'. Canceled {len(cancelled_ids)} orders in engine.")
-        return {
-            'status': 'success',
-            'canceled_orders': cancelled_ids
-        }
-
-    def orderbook(self) -> Dict[str, Any]:
-        """
-        Simulate the order book by checking the status of orders submitted
-by the bot.
-        """
-        logger.info("Adapter: Bot is requesting order book.")
-        orders_from_engine = self._adapter.get_orders()
-        
-        bot_orders = []
-        
-        # First, add all active orders from engine
-        for order in orders_from_engine:
-            if order.id:
-                status_map = {
-                    OrderStatus.PENDING: 'open',
-                    OrderStatus.SUBMITTED: 'open',  # Add this missing mapping
-                    OrderStatus.FILLED: 'complete',
-                    OrderStatus.CANCELLED: 'cancelled',
-                    OrderStatus.REJECTED: 'rejected',
-                }
-                mapped_status = status_map.get(order.status, 'unknown')
-                logger.debug(f"Adapter: Order {order.id} - Status: {order.status} -> {mapped_status}, Price: {order.avg_fill_price or order.price}")
-                
-                bot_orders.append({
-                    'orderid': order.id,
-                    'order_status': mapped_status,
-                    'price': order.avg_fill_price or order.price or 0.0
-                })
-
-        # Add recent fills that the bot hasn't processed yet (these are removed from active_orders)
-        for order_id, fill_info in list(self._adapter.recent_fills.items()):
-            logger.debug(f"Adapter: Adding recent fill {order_id} - Status: complete, Price: {fill_info['price']}")
-            bot_orders.append({
-                'orderid': order_id,
-                'order_status': 'complete',
-                'price': fill_info['price']
-            })
-
-        logger.info(f"Adapter: Returning {len(bot_orders)} orders to bot")
-        return {
-            'status': 'success',
-            'data': {'orders': bot_orders}
-        }
 
 
 class GridStrategyAdapter(BaseStrategy):

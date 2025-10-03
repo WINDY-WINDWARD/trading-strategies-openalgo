@@ -96,8 +96,11 @@ This software is provided "AS IS" without warranty of any kind. The author(s) as
 ### ⚙️ **Configuration & Customization**
 
 #### **Strategy Parameters**
+
+**Grid Trading Strategy:**
 ```yaml
 strategy:
+  type: grid                   # Strategy type
   grid_levels: 10              # Number of levels per side (20 total orders)
   grid_spacing_pct: 1.5        # Spacing between grid levels
   order_amount: 1000           # Rupees per grid order
@@ -106,6 +109,104 @@ strategy:
   stop_loss_pct: 8.0           # Risk management
   take_profit_pct: 12.0
   auto_reset: true             # Automatic grid repositioning
+```
+
+**Supertrend Strategy:**
+```yaml
+strategy:
+  type: supertrend             # Strategy type
+  atr_period: 10               # ATR calculation period
+  atr_multiplier: 3.0          # Supertrend sensitivity
+  max_order_amount: 5000.0    # Maximum rupees per trade
+  stop_loss_pct: 3.0           # Risk management
+  take_profit_pct: 5.0
+  # Buffer configuration for accurate Supertrend calculation
+  buffer_enabled: true         # Enable data buffer
+  buffer_days: 90              # Buffer period in days
+  buffer_mode: skip_initial    # Buffer handling mode
+```
+
+#### **Buffer Configuration for Supertrend Strategy**
+
+The Supertrend strategy requires historical data for accurate ATR (Average True Range) calculations. To ensure reliable signals, the buffer system provides two modes:
+
+**Buffer Parameters:**
+- `buffer_enabled`: Enable/disable the buffer system (default: true)
+- `buffer_days`: Number of days to use as buffer (default: 90)
+- `buffer_mode`: How to handle the buffer period
+  - `skip_initial`: Skip trading during the first N bars/days to allow accurate calculations
+  - `fetch_additional`: Fetch additional historical data before the backtest period (future feature)
+
+**Buffer Modes Explained:**
+
+1. **skip_initial mode** (Recommended):
+   - Processes the first 90 days (or specified buffer_days) of data without trading
+   - Allows Supertrend indicator to stabilize with accurate ATR calculations
+   - Trading begins only after the buffer period is complete
+   - More realistic as it avoids early signals based on insufficient data
+
+2. **fetch_additional mode** (Future enhancement):
+   - Would fetch additional historical data before the backtest start date
+   - Backtest would begin immediately with pre-warmed indicators
+   - Currently equivalent to skip_initial mode
+
+**Example Buffer Calculation:**
+- For 1h timeframe with 90-day buffer: 90 × 24 = 2,160 bars skipped
+- For 15m timeframe with 90-day buffer: 90 × 96 = 8,640 bars skipped
+- For 1d timeframe with 90-day buffer: 90 × 1 = 90 bars skipped
+
+**Configuration Examples:**
+```yaml
+# Conservative approach - 90 day buffer
+strategy:
+  buffer_enabled: true
+  buffer_days: 90
+  buffer_mode: skip_initial
+
+# Faster testing - 30 day buffer
+strategy:
+  buffer_enabled: true
+  buffer_days: 30
+  buffer_mode: skip_initial
+
+# Disable buffer (not recommended for production)
+strategy:
+  buffer_enabled: false
+```
+
+#### **Position Sizing for Supertrend Strategy**
+
+The Supertrend strategy supports intelligent position sizing based on available capital and maximum order amount:
+
+**Key Parameters:**
+- `max_order_amount`: Maximum amount in rupees to spend per trade (default: 50,000)
+- The bot calculates optimal share quantity based on current stock price
+
+**Position Sizing Logic:**
+```
+shares_to_buy = max_order_amount / current_stock_price
+quantity = max(1, floor(shares_to_buy))  # At least 1 share
+```
+
+**Example:**
+- Stock price: ₹100
+- max_order_amount: ₹50,000
+- Shares purchased: 500 shares
+- Total investment: ₹50,000
+
+**Configuration Examples:**
+```yaml
+# Conservative position sizing
+strategy:
+  max_order_amount: 25000.0    # ₹25,000 per trade
+
+# Aggressive position sizing
+strategy:
+  max_order_amount: 100000.0   # ₹1,00,000 per trade
+
+# Small position sizing for testing
+strategy:
+  max_order_amount: 5000.0     # ₹5,000 per trade
 ```
 
 #### **Backtest Configuration**
@@ -328,7 +429,9 @@ trading-strategies-openalgo/
 │   │   └── cache_manager.py     # Data caching
 │   ├── strategies/           # Strategy adapters
 │   │   ├── base_strategy.py     # Strategy interface
-│   │   └── grid_strategy_adapter.py # Grid bot adapter
+│   │   ├── grid_strategy_adapter.py # Grid bot adapter
+│   │   ├── supertrend_strategy_adapter.py # Supertrend bot adapter
+│   │   └── mock_openalgo_client.py # Common mock client
 │   ├── models/              # Data models
 │   │   ├── config.py           # Configuration models
 │   │   ├── market_data.py      # Market data models
@@ -438,6 +541,7 @@ python -m scripts.backtest --config config.yaml
 - ✅ Base strategy interface
 - ✅ Event-driven strategy pattern
 - ✅ Grid strategy adapter
+- ✅ Supertrend strategy adapter
 
 **Web Interface:**
 - ✅ FastAPI endpoints for configuration and execution
@@ -447,6 +551,7 @@ python -m scripts.backtest --config config.yaml
 
 **Strategy Implementation:**
 - ✅ Grid trading bot with dynamic grid levels
+- ✅ Supertrend trading bot with ATR-based signals
 - ✅ Initial position strategies
 - ✅ Stop-loss and take-profit management
 - ✅ Automatic grid reset on breakout

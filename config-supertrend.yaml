@@ -12,7 +12,7 @@ data:
   end: '2025-10-01'
   exchange: NSE
   start: '2025-08-01'
-  symbol: IDBI
+  symbol: RELIANCE
   timeframe: 15m
   use_synthetic: false
 logging:
@@ -20,29 +20,29 @@ logging:
   format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
   level: INFO
 openalgo:
-  api_key: 
+  api_key: 89fd8eaa346fb5e91bcbe8a3490b3d7b9c9c7defbe2babefd3037f11a41376a7
   base_url: http://127.0.0.1:5000
   cache_max_age_hours: 24
   force_cache_use: true
   retry_attempts: 3
   timeout: 30
 strategy:
-  type: grid  # Options: 'grid' or 'supertrend'
-  # Grid-specific parameters
-  auto_reset: true
-  grid_levels: 10
-  grid_spacing_pct: 2.0
-  grid_type: geometric
-  initial_position_strategy: buy_at_market
-  order_amount: 1000.0
-  # Risk management parameters (common to all strategies)
-  stop_loss_pct: 10.0
-  take_profit_pct: 15.0
-  # Supertrend parameters (used when type=supertrend)
+  type: supertrend
+  # Supertrend-specific parameters
   atr_period: 10
   atr_multiplier: 3.0
+  # Common risk management parameters
+  stop_loss_pct: 3.0
+  take_profit_pct: 5.0
+  # Grid parameters (not used for supertrend but required by schema)
+  grid_levels: 10
+  grid_spacing_pct: 1.0
+  order_amount: 1000.0
+  grid_type: arithmetic
+  auto_reset: true
+  initial_position_strategy: wait_for_buy
 ui:
   debug: false
   host: 0.0.0.0
   port: 42069
-  title: Grid Trading Backtester
+  title: Supertrend Trading Backtester

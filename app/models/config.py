@@ -52,19 +52,51 @@ class BacktestConfig(BaseModel):
 class StrategyConfig(BaseModel):
     """Strategy configuration."""
     type: str = Field(default="grid", description="Strategy type")
+    
+    # Grid strategy parameters
     grid_levels: int = Field(default=10, description="Number of grid levels")
     grid_spacing_pct: float = Field(default=1.0, description="Grid spacing percentage")
     order_amount: float = Field(default=1000.0, description="Order amount per grid level")
     grid_type: str = Field(default="arithmetic", description="Grid type: arithmetic or geometric")
-    stop_loss_pct: float = Field(default=5.0, description="Stop loss percentage")
-    take_profit_pct: float = Field(default=10.0, description="Take profit percentage")
     auto_reset: bool = Field(default=True, description="Auto reset grid on breakout")
     initial_position_strategy: str = Field(default="wait_for_buy", description="Initial position strategy")
+    
+    # Common strategy parameters
+    stop_loss_pct: float = Field(default=5.0, description="Stop loss percentage")
+    take_profit_pct: float = Field(default=10.0, description="Take profit percentage")
+    
+    # Supertrend strategy parameters
+    atr_period: int = Field(default=10, description="ATR period for Supertrend calculation")
+    atr_multiplier: float = Field(default=3.0, description="ATR multiplier for Supertrend calculation")
+    max_order_amount: float = Field(default=1000.0, description="Maximum amount in rupees per trade for Supertrend strategy")
+    
+    # Buffer configuration for strategies requiring historical data
+    buffer_enabled: bool = Field(default=True, description="Enable data buffer for accurate calculations")
+    buffer_days: int = Field(default=90, description="Number of buffer days for historical data")
+    buffer_mode: str = Field(default="skip_initial", description="Buffer mode: 'skip_initial' or 'fetch_additional'")
 
     @validator('grid_type')
     def validate_grid_type(cls, v):
         if v not in ['arithmetic', 'geometric']:
             raise ValueError("Grid type must be 'arithmetic' or 'geometric'")
+        return v
+    
+    @validator('buffer_mode')
+    def validate_buffer_mode(cls, v):
+        if v not in ['skip_initial', 'fetch_additional']:
+            raise ValueError("Buffer mode must be 'skip_initial' or 'fetch_additional'")
+        return v
+    
+    @validator('buffer_days')
+    def validate_buffer_days(cls, v):
+        if v < 1 or v > 365:
+            raise ValueError("Buffer days must be between 1 and 365")
+        return v
+    
+    @validator('type')
+    def validate_strategy_type(cls, v):
+        if v not in ['grid', 'supertrend']:
+            raise ValueError("Strategy type must be 'grid' or 'supertrend'")
         return v
 
 

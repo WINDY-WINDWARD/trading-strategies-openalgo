@@ -135,8 +135,8 @@ class BacktestEngine:
                 self._process_candle(candle)
                 self.processed_candles += 1
                 
-                # Progress callback with tick information
-                if self.progress_callback and self.processed_candles % 10 == 0: # Update every 10 candles
+                # Progress callback with tick information (reduced frequency)
+                if self.progress_callback and self.processed_candles % 100 == 0: # Update every 100 candles instead of 10
                     asyncio.run(self.progress_callback(self.get_status()))
 
                 pbar.update(1)
@@ -179,7 +179,9 @@ class BacktestEngine:
         self.current_time = candle.timestamp
         self.current_date = candle_date
         
-        logger.debug(f"Processing tick {self.current_tick}: {candle.timestamp} - Price: {candle.close}")
+        # Only log every 1000 ticks to reduce overhead
+        if self.current_tick % 1000 == 0:
+            logger.debug(f"Processing tick {self.current_tick}: {candle.timestamp} - Price: {candle.close}")
         
         # Update portfolio with new prices
         self.portfolio.update_prices(candle)
@@ -238,7 +240,9 @@ class BacktestEngine:
         """
         filled_or_cancelled_orders = []
         
-        logger.debug(f"Processing {len(self.active_orders)} active orders for tick {self.current_tick}")
+        # Only log debug info for active orders occasionally
+        if len(self.active_orders) > 0 and self.current_tick % 1000 == 0:
+            logger.debug(f"Processing {len(self.active_orders)} active orders for tick {self.current_tick}")
         
         for order_id, order in self.active_orders.items():
             if order.status not in [OrderStatus.PENDING, OrderStatus.SUBMITTED]:
@@ -248,7 +252,9 @@ class BacktestEngine:
             # Skip orders that were just submitted in this same tick
             # to prevent immediate execution within the same tick
             if order.submitted_at and order.submitted_at >= candle.timestamp:
-                logger.debug(f"Skipping order {order_id} - submitted in current tick")
+                # Only log occasionally to reduce overhead
+                if self.current_tick % 1000 == 0:
+                    logger.debug(f"Skipping order {order_id} - submitted in current tick")
                 continue
             
             # Attempt to fill order on this tick
@@ -297,7 +303,8 @@ class BacktestEngine:
         for order_id in filled_or_cancelled_orders:
             self.active_orders.pop(order_id, None)
         
-        if filled_or_cancelled_orders:
+        # Only log occasionally to reduce overhead
+        if filled_or_cancelled_orders and self.current_tick % 100 == 0:
             logger.debug(f"Tick {self.current_tick}: Processed {len(filled_or_cancelled_orders)} orders")
     
     def submit_order(self, order: Order) -> bool:

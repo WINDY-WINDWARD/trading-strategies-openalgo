@@ -24,7 +24,8 @@ class SupertrendTradingBot(TradingBot):
                  take_profit_pct: float = 5.0,
                  stop_loss_pct: float = 3.0,
                  atr_period: int = 10,
-                 atr_multiplier: float = 3.0):
+                 atr_multiplier: float = 3.0,
+                 max_order_amount: float = 1000.0):
         """
         Initializes the SupertrendTradingBot.
 
@@ -38,6 +39,7 @@ class SupertrendTradingBot(TradingBot):
             stop_loss_pct (float, optional): The percentage to set the stop loss at. Defaults to 3.0.
             atr_period (int, optional): The period to use for the ATR calculation. Defaults to 10.
             atr_multiplier (float, optional): The multiplier to use for the Supertrend calculation. Defaults to 3.0.
+            max_order_amount (float, optional): Maximum amount in rupees per trade. Defaults to 1000.0.
         """
         self.client = api(api_key, host)
         self.symbol = symbol
@@ -47,6 +49,7 @@ class SupertrendTradingBot(TradingBot):
         self.stop_loss_pct = stop_loss_pct
         self.atr_period = atr_period
         self.atr_multiplier = atr_multiplier
+        self.max_order_amount = max_order_amount
         self.state = self.load_state()
         self.ohlc_data = None
         self.is_running = False
@@ -69,15 +72,10 @@ class SupertrendTradingBot(TradingBot):
         
         data['basic_upper_band'] = data['high'] + self.atr_multiplier * data['atr']
         data['basic_lower_band'] = data['low'] - self.atr_multiplier * data['atr']
-
-        print(f"Starting Supertrend calculation for {len(data)} rows...")
-        
         # Initialize final bands
         data['final_upper_band'] = data['basic_upper_band'].copy()
         data['final_lower_band'] = data['basic_lower_band'].copy()
 
-        # Vectorized calculation for final bands
-        print("Calculating final bands...")
         for i in range(1, len(data)):
             prev_close = data['close'].iloc[i-1]
             prev_final_upper = data['final_upper_band'].iloc[i-1]
@@ -101,8 +99,6 @@ class SupertrendTradingBot(TradingBot):
             if i % 1000 == 0:
                 print(f"Processed {i}/{len(data)} rows for final bands...")
 
-        print("Calculating supertrend direction...")
-        # Initialize supertrend columns
         data['supertrend'] = np.nan
         data['supertrend_direction'] = 'down'
 
@@ -134,6 +130,29 @@ class SupertrendTradingBot(TradingBot):
 
     def get_ohlc_data(self):
         return self.ohlc_data
+
+    def calculate_quantity(self, current_price: float) -> int:
+        """
+        Calculate the number of shares to buy based on max_order_amount and current price.
+        
+        Args:
+            current_price (float): Current price of the stock
+            
+        Returns:
+            int: Number of shares to buy (at least 1)
+        """
+        if current_price <= 0:
+            logging.warning(f"Invalid price {current_price}, defaulting to 1 share")
+            return 1
+            
+        # Calculate maximum shares we can afford
+        max_shares = int(self.max_order_amount / current_price)
+        
+        # Ensure we buy at least 1 share
+        quantity = max(1, max_shares)
+        
+        logging.info(f"Calculated quantity: {quantity} shares (price: ₹{current_price}, max_amount: ₹{self.max_order_amount})")
+        return quantity
 
     def place_limit_order(self, action: str, quantity: int, price: float):
         """
@@ -367,7 +386,8 @@ class SupertrendTradingBot(TradingBot):
                 if self.state['position'] == 0:
                     # If the Supertrend direction is up, place a buy order
                     if last_row['supertrend_direction'] == 'up':
-                        self.place_market_order('buy', 1)
+                        quantity = self.calculate_quantity(current_price)
+                        self.place_market_order('buy', quantity)
                 else:
                     # If the Supertrend direction is down, place a sell order
                     if last_row['supertrend_direction'] == 'down':
