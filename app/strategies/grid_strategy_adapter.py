@@ -9,7 +9,7 @@ from datetime import datetime
 
 from strats.grid_trading_bot import GridTradingBot
 from .base_strategy import BaseStrategy
-from .mock_openalgo_client import MockOpenAlgoClient
+from .util.mock_openalgo_client import MockOpenAlgoClient
 from ..models.market_data import Candle
 from ..models.orders import Order, OrderAction, OrderType, OrderStatus
 

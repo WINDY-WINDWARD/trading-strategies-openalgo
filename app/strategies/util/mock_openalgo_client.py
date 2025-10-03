@@ -10,10 +10,10 @@ from datetime import datetime
 import uuid
 import pandas as pd
 
-from ..models.orders import Order, OrderAction, OrderType, OrderStatus
+from ...models.orders import Order, OrderAction, OrderType, OrderStatus
 
 if TYPE_CHECKING:
-    from .base_strategy import BaseStrategy
+    from ..base_strategy import BaseStrategy
 
 logger = logging.getLogger(__name__)
 

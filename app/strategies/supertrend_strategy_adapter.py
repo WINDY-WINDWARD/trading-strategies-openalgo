@@ -11,7 +11,7 @@ import numpy as np
 import types
 from strats.supertrend_trading_bot import SupertrendTradingBot
 from .base_strategy import BaseStrategy
-from .mock_openalgo_client import MockOpenAlgoClient
+from .util.mock_openalgo_client import MockOpenAlgoClient
 from ..models.market_data import Candle
 from ..models.orders import Order, OrderAction, OrderType, OrderStatus
 
