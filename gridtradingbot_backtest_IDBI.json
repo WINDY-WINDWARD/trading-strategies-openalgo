@@ -1,0 +1,140 @@
+{
+  "grid_center_price": 68.35,
+  "grid_upper_bound": 80.88374787841991,
+  "grid_lower_bound": 57.75270620213567,
+  "buy_orders": {
+    "67.01": "aa823049-c64a-4fbc-95ab-80efe20ddb90",
+    "65.7": "f39bd436-2955-4cc1-97ee-1f6b7ec871b5",
+    "64.41": "af317359-68ac-427a-9bf1-df1843e3a1ab",
+    "63.14": "d2b3de06-c207-41bf-b960-8b1a30990a4e",
+    "61.91": "b82f3ebd-7a2b-4aad-8dea-e7fd67417eee",
+    "60.69": "360bbb51-d271-4d2c-ae31-ecdb4959f9a1",
+    "59.5": "eeaf8169-3467-49bf-883f-15d75a121167",
+    "58.34": "edc623af-61bc-48a6-8f3f-1e4427f40cb3"
+  },
+  "sell_orders": {
+    "69.72": "968a0ead-9448-4a42-a748-5b2352f38e11",
+    "71.11": "b5d60acd-6cb0-4baf-988a-87efc1cfe8e5",
+    "72.53": "4dc20a67-5c7a-4571-bf4a-0b749d7d81bf",
+    "73.98": "cd37881a-6d5b-4c24-b6af-0ba3d5cc3a90",
+    "75.46": "a5554dab-7338-4b07-95f4-21fb75f28b04",
+    "76.97": "e06f837f-a5c8-4d2a-8a62-0907022a3943",
+    "78.51": "434b8fbc-9951-46f7-babb-8a18f07fd61e",
+    "80.08": "0718f171-0beb-4c00-ade8-8bd05796f8e3"
+  },
+  "filled_orders": [
+    {
+      "order_id": "40104353-5631-47b7-ac99-7d3b62fe11d0",
+      "type": "BUY",
+      "action": "MARKET_BUY",
+      "quantity": 103,
+      "price": 68.35,
+      "timestamp": "2025-10-03T22:10:49.965210",
+      "purpose": "initial_position"
+    }
+  ],
+  "pending_orders": {
+    "aa823049-c64a-4fbc-95ab-80efe20ddb90": {
+      "type": "BUY",
+      "price": 67.01,
+      "quantity": 14,
+      "timestamp": "2025-10-03T22:10:49.957541"
+    },
+    "f39bd436-2955-4cc1-97ee-1f6b7ec871b5": {
+      "type": "BUY",
+      "price": 65.7,
+      "quantity": 15,
+      "timestamp": "2025-10-03T22:10:49.958539"
+    },
+    "af317359-68ac-427a-9bf1-df1843e3a1ab": {
+      "type": "BUY",
+      "price": 64.41,
+      "quantity": 15,
+      "timestamp": "2025-10-03T22:10:49.959621"
+    },
+    "d2b3de06-c207-41bf-b960-8b1a30990a4e": {
+      "type": "BUY",
+      "price": 63.14,
+      "quantity": 15,
+      "timestamp": "2025-10-03T22:10:49.960148"
+    },
+    "b82f3ebd-7a2b-4aad-8dea-e7fd67417eee": {
+      "type": "BUY",
+      "price": 61.91,
+      "quantity": 16,
+      "timestamp": "2025-10-03T22:10:49.961138"
+    },
+    "360bbb51-d271-4d2c-ae31-ecdb4959f9a1": {
+      "type": "BUY",
+      "price": 60.69,
+      "quantity": 16,
+      "timestamp": "2025-10-03T22:10:49.962202"
+    },
+    "eeaf8169-3467-49bf-883f-15d75a121167": {
+      "type": "BUY",
+      "price": 59.5,
+      "quantity": 16,
+      "timestamp": "2025-10-03T22:10:49.963208"
+    },
+    "edc623af-61bc-48a6-8f3f-1e4427f40cb3": {
+      "type": "BUY",
+      "price": 58.34,
+      "quantity": 17,
+      "timestamp": "2025-10-03T22:10:49.964259"
+    },
+    "968a0ead-9448-4a42-a748-5b2352f38e11": {
+      "type": "SELL",
+      "price": 69.72,
+      "quantity": 14,
+      "timestamp": "2025-10-03T22:10:49.966201"
+    },
+    "b5d60acd-6cb0-4baf-988a-87efc1cfe8e5": {
+      "type": "SELL",
+      "price": 71.11,
+      "quantity": 14,
+      "timestamp": "2025-10-03T22:10:49.967202"
+    },
+    "4dc20a67-5c7a-4571-bf4a-0b749d7d81bf": {
+      "type": "SELL",
+      "price": 72.53,
+      "quantity": 13,
+      "timestamp": "2025-10-03T22:10:49.968207"
+    },
+    "cd37881a-6d5b-4c24-b6af-0ba3d5cc3a90": {
+      "type": "SELL",
+      "price": 73.98,
+      "quantity": 13,
+      "timestamp": "2025-10-03T22:10:49.969203"
+    },
+    "a5554dab-7338-4b07-95f4-21fb75f28b04": {
+      "type": "SELL",
+      "price": 75.46,
+      "quantity": 13,
+      "timestamp": "2025-10-03T22:10:49.970201"
+    },
+    "e06f837f-a5c8-4d2a-8a62-0907022a3943": {
+      "type": "SELL",
+      "price": 76.97,
+      "quantity": 12,
+      "timestamp": "2025-10-03T22:10:49.971200"
+    },
+    "434b8fbc-9951-46f7-babb-8a18f07fd61e": {
+      "type": "SELL",
+      "price": 78.51,
+      "quantity": 12,
+      "timestamp": "2025-10-03T22:10:49.972201"
+    },
+    "0718f171-0beb-4c00-ade8-8bd05796f8e3": {
+      "type": "SELL",
+      "price": 80.08,
+      "quantity": 12,
+      "timestamp": "2025-10-03T22:10:49.973200"
+    }
+  },
+  "total_trades": 0,
+  "total_profit": 0.0,
+  "grid_resets": 0,
+  "current_position": 103,
+  "is_active": false,
+  "last_update": "2025-10-03T22:13:39.560350"
+}

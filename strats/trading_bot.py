@@ -45,4 +45,22 @@ class TradingBot(ABC):
 
     @abstractmethod
     def run_strategy(self):
+        """Execute live trading strategy (usually contains infinite loop)."""
+        pass
+    
+    @abstractmethod
+    def run_backtest(self, current_price):
+        """
+        Execute one iteration of strategy logic for backtesting.
+        
+        This method should execute the strategy logic for a single bar/tick
+        without any loops or sleeps. It's called by the backtesting engine
+        for each candle.
+        
+        Args:
+            current_price: Current market price for this iteration
+            
+        Returns:
+            None
+        """
         pass

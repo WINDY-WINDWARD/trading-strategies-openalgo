@@ -975,6 +975,28 @@ class GridTradingBot(TradingBot):
         self.save_state()
         self.logger.info("Grid trading strategy stopped")
 
+    def run_backtest(self, current_price: float):
+        """
+        Execute one iteration of grid strategy logic for backtesting.
+        
+        This method contains the core strategy logic without loops or sleeps,
+        designed to be called once per candle by the backtesting engine.
+        
+        Args:
+            current_price: Current market price for this bar
+        """
+        # Check for filled orders
+        filled_orders = self.check_filled_orders()
+        if filled_orders:
+            for order in filled_orders:
+                self.logger.debug(f"Grid order filled: {order['type']} {order['quantity']} @ {order['fill_price']}")
+        
+        # Check if price is within grid bounds
+        bounds_status = self.check_grid_bounds(current_price)
+        
+        if bounds_status != 'within':
+            self.handle_breakout(current_price, bounds_status)
+
     def _find_order_at_price(self, level_price: float, order_book: Dict) -> Optional[str]:
         """
         Find an order ID for a given price level with a small tolerance.

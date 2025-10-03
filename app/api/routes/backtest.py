@@ -17,7 +17,7 @@ import io
 from ...utils.config_loader import load_config, save_config, get_default_config
 from ...models.config import AppConfig
 from ...core.backtest_engine import BacktestEngine
-from ...strategies import GridStrategyAdapter, SupertrendStrategyAdapter
+from ...strategies import StrategyRegistry
 from ...data.synthetic_data import SyntheticDataProvider
 from ...data.openalgo_provider import OpenAlgoDataProvider
 from ..websockets import ConnectionManager
@@ -99,14 +99,20 @@ async def run_backtest_task(app_config: AppConfig):
 
         # --- Strategy Initialization ---
         strategy_type = app_config.strategy.type
-        if strategy_type == "grid":
-            strategy = GridStrategyAdapter()
-            strategy.initialize(**app_config.strategy.model_dump(), symbol=app_config.data.symbol, exchange=app_config.data.exchange)
-        elif strategy_type == "supertrend":
-            strategy = SupertrendStrategyAdapter()
-            strategy.initialize(**app_config.strategy.model_dump(), symbol=app_config.data.symbol, exchange=app_config.data.exchange)
-        else:
-            raise ValueError(f"Unsupported strategy type: {strategy_type}")
+        
+        # Use registry to get strategy adapter
+        try:
+            strategy = StrategyRegistry.get(strategy_type)
+        except ValueError as e:
+            raise ValueError(f"Unsupported strategy type: {strategy_type}. {e}")
+        
+        # Initialize strategy with config parameters
+        strategy.initialize(
+            **app_config.strategy.model_dump(), 
+            symbol=app_config.data.symbol, 
+            exchange=app_config.data.exchange,
+            timeframe=app_config.data.timeframe
+        )
 
         # --- Engine Setup ---
         engine = BacktestEngine(app_config)

@@ -233,29 +233,79 @@ data:
 
 ### 🔧 **Extensibility & Development**
 
+#### **🚀 Universal Strategy Adapter System**
+
+**New approach to adding new trading strategies with less code!**
+
+The Universal Strategy Adapter eliminates the need for writing 100-500 lines of boilerplate adapter code for each new trading strategy. Simply implement your trading logic in a `TradingBot` class and register it - no custom adapter needed!
+
+**Key Features:**
+- ✅ **Zero Boilerplate**: New strategies require 0 adapter lines (vs 100-500 previously)
+- ✅ **Automatic Parameter Mapping**: Uses introspection to wire parameters
+- ✅ **Universal Buffer System**: Built-in 90-day buffer for indicator warm-up
+- ✅ **Lifecycle Hooks**: Customization points without writing full adapters
+- ✅ **Standard & Custom Support**: Use universal for simple strategies, custom for complex ones
+
+**Quick Example:**
+```python
+# 1. Implement your strategy (in strats/my_bot.py)
+class MyTradingBot(TradingBot):
+    def __init__(self, api_key, symbol, my_param, **kwargs):
+        super().__init__(api_key, symbol, **kwargs)
+        self.my_param = my_param
+    
+    def run_backtest(self, current_price):
+        # Your strategy logic here
+        if self.should_buy(current_price):
+            self.place_order('BUY', 100, current_price)
+
+# 2. Register it (in app/strategies/registry.py)
+StrategyRegistry.register('mystrategy', MyTradingBot)
+
+# 3. Done! Use it immediately in config:
+strategy:
+  type: mystrategy
+  my_param: 42
+```
+
+**When to Use Universal vs Custom:**
+- **Universal Adapter**: Simple strategies (RSI, MACD, Grid, Moving Average Cross)
+- **Custom Adapter**: Complex multi-timeframe analysis, heavy DataFrame operations
+
+📚 **Learn More**: See [UNIVERSAL_ADAPTER_SUMMARY.md](docs/UNIVERSAL_ADAPTER_SUMMARY.md) for detailed documentation, examples, and implementation guide.
+
+---
 
 ## Extending the Framework
 
 ### Custom Strategies
 
-1. Inherit from `BaseStrategy`
-2. Implement `on_bar()` method
-3. Register with backtest engine
+#### **Simple Strategies (Universal Adapter)**
+```python
+from strats.trading_bot import TradingBot
+from app.strategies.registry import StrategyRegistry
 
-### Custom Data Providers
+# 1. Create your bot class
+class RSITradingBot(TradingBot):
+    def __init__(self, api_key, symbol, rsi_period=14, **kwargs):
+        super().__init__(api_key, symbol, **kwargs)
+        self.rsi_period = rsi_period
+    
+    def run_backtest(self, current_price):
+        # Calculate RSI and trade
+        rsi = self.calculate_rsi()
+        if rsi < 30:  # Oversold
+            self.place_order('BUY', 100, current_price)
+        elif rsi > 70:  # Overbought
+            self.place_order('SELL', 100, current_price)
 
-1. Implement data provider interface
-2. Add caching support
-3. Handle errors and rate limiting
+# 2. Register (uses UniversalStrategyAdapter automatically)
+StrategyRegistry.register('rsi', RSITradingBot)
 
-### Custom Metrics
+# That's it! Zero adapter code needed.
+```
 
-1. Extend `MetricsCalculator`
-2. Add new metric calculations
-3. Update result models
-
-
-#### **Custom Strategies**
+#### **Complex Strategies (Custom Adapter)**
 ```python
 from app.strategies.base_strategy import BaseStrategy
 
@@ -270,6 +320,12 @@ class CustomStrategy(BaseStrategy):
             ))
 ```
 
+### Custom Data Providers
+
+1. Implement data provider interface
+2. Add caching support
+3. Handle errors and rate limiting
+
 #### **Custom Data Providers**
 ```python
 from app.data.base_provider import BaseDataProvider
@@ -280,7 +336,7 @@ class CustomDataProvider(BaseDataProvider):
         return self.process_data(raw_data)
 ```
 
-#### **Custom Metrics**
+### Custom Metrics
 ```python
 from app.core.metrics import MetricsCalculator
 
@@ -289,6 +345,27 @@ class CustomMetricsCalculator(MetricsCalculator):
         # Implement specialized metrics
         return custom_analysis
 ```
+
+---
+
+## 📚 Documentation
+
+Comprehensive guides to help you get started and master the platform:
+
+### Strategy Guides
+- **[Grid Trading Guide](docs/GRID_TRADING_GUIDE.md)** - Complete guide to grid trading strategy, configuration, and best practices
+- **[Initial Position Strategy Guide](docs/INITIAL_POSITION_STRATEGY_GUIDE.md)** - Understanding `wait_for_buy` vs `buy_at_market` position strategies
+- **[Universal Strategy Adapter](docs/UNIVERSAL_ADAPTER_SUMMARY.md)** - Add new strategies with 80% less code using the universal adapter system
+
+### Platform Documentation
+- **[Web Dashboard Guide](docs/WEB_DASHBOARD_README.md)** - Interactive web interface for monitoring and controlling your trading bots
+- **[Quick Start Guide](docs/QUICK_START_GUIDE.md)** - Get up and running in minutes
+
+### Additional Resources
+- **[README](README.md)** - This file - comprehensive overview of all features
+- **[License](LICENSE)** - MIT License details
+
+---
 
 ### 📊 **Advanced Features**
 

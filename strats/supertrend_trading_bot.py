@@ -409,3 +409,53 @@ class SupertrendTradingBot(TradingBot):
                 logging.error(f"An error occurred in the strategy loop: {e}")
                 # Sleep for 1 minute
                 time.sleep(60)
+    
+    def run_backtest(self, current_price: float):
+        """
+        Execute one iteration of Supertrend strategy logic for backtesting.
+        
+        This method contains the core strategy logic without loops or sleeps,
+        designed to be called once per candle by the backtesting engine.
+        The backtesting adapter should handle Supertrend calculation and maintain
+        the OHLC data buffer.
+        
+        Args:
+            current_price: Current market price for this bar
+        """
+        # Check for filled orders
+        self.check_filled_orders()
+        
+        # Ensure we have OHLC data
+        if self.ohlc_data is None or self.ohlc_data.empty:
+            logging.warning("No OHLC data available for Supertrend calculation")
+            return
+        
+        # Get the last row with Supertrend signal
+        last_row = self.ohlc_data.iloc[-1]
+        
+        # Validate current price
+        if not isinstance(current_price, (int, float)) or current_price <= 0:
+            logging.warning(f"Invalid current price: {current_price}, skipping")
+            return
+        
+        # Execute trading logic based on Supertrend direction
+        if self.state['position'] == 0:
+            # No position - check for buy signal
+            if last_row['supertrend_direction'] == 'up':
+                quantity = self.calculate_quantity(current_price)
+                self.place_market_order('buy', quantity)
+        else:
+            # Have position - check for sell signal or exit conditions
+            if last_row['supertrend_direction'] == 'down':
+                # Supertrend sell signal
+                self.place_market_order('sell', abs(self.state['position']))
+            elif len(self.state['trades']) > 0:
+                # Check take profit and stop loss
+                entry_price = self.state['trades'][-1]['price']
+                
+                # Take profit
+                if current_price >= entry_price * (1 + self.take_profit_pct / 100):
+                    self.place_market_order('sell', abs(self.state['position']))
+                # Stop loss
+                elif current_price <= entry_price * (1 - self.stop_loss_pct / 100):
+                    self.place_market_order('sell', abs(self.state['position']))
