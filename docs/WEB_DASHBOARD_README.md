@@ -45,7 +45,7 @@ python web_dashboard.py
 ### Prerequisites
 - Python 3.7+
 - OpenAlgo platform running (default: http://127.0.0.1:8800)
-- Valid `grid_config.json` configuration file
+- Valid `configs/active/grid_config.json` configuration file
 
 ### Install Dependencies
 ```bash
@@ -151,7 +151,7 @@ The dashboard automatically opens in your default browser when using the launche
 
 ## 🛠️ Configuration
 
-The web dashboard uses your existing `grid_config.json` configuration file. No additional configuration is required.
+The web dashboard uses your existing `configs/active/grid_config.json` configuration file. No additional configuration is required.
 
 ### Sample Grid Config
 ```json
@@ -188,7 +188,7 @@ The web dashboard uses your existing `grid_config.json` configuration file. No a
 
 ## 🎯 Trading Workflow
 
-1. **Configure** your bot using `grid_config.json`
+1. **Configure** your bot using `configs/active/grid_config.json`
 2. **Launch** the web dashboard using the launcher script
 3. **Monitor** real-time price action and grid performance
 4. **Control** the bot using web interface or CLI
@@ -205,7 +205,7 @@ pip install flask flask-cors flask-socketio eventlet
 
 **No Price Data**
 - Check OpenAlgo platform is running
-- Verify API key in `grid_config.json`
+- Verify API key in `configs/active/grid_config.json`
 - Ensure trading symbol is correct
 
 **Charts Not Loading**
@@ -242,7 +242,7 @@ Planned features for future releases:
 For issues specific to the web dashboard:
 1. Check the console output for error messages
 2. Verify all dependencies are installed correctly
-3. Ensure your `grid_config.json` is valid
+3. Ensure your `configs/active/grid_config.json` is valid
 4. Check that OpenAlgo platform is accessible
 
 ## 📄 License

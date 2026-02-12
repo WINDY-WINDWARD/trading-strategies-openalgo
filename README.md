@@ -424,7 +424,7 @@ pip install -r requirements.txt
 ### 2. Configuration
 
 ```bash
-cp example-config.yaml config.yaml
+cp configs/templates/example-config.yaml configs/active/config.yaml
 # Edit with your parameters
 ```
 **Key configurations:**
@@ -451,7 +451,7 @@ python tests/test_openalgo.py
 
 ```bash
 # CLI execution
-python -m scripts.backtest --config config.yaml
+python -m scripts.backtest --config configs/active/config.yaml
 
 # Web interface
 make web
@@ -466,7 +466,7 @@ make web
 
 ### 5. Live Trading
 ```bash
-# uses grid_config.json
+# uses configs/active/grid_config.json
 # Web interface
 make live
 # Visit http://localhost:5001 (check printed URL)
@@ -540,9 +540,13 @@ trading-strategies-openalgo/
 ├── docs/                    # Documentation
 │   ├── GRID_TRADING_GUIDE.md
 │   └── WEB_DASHBOARD_README.md
-├── config.yaml              # Main configuration
-├── grid_config.json         # Grid strategy config
-├── supertrend_config.json   # Supertrend strategy config
+├── configs/
+│   ├── active/
+│   │   ├── config.yaml              # Main configuration
+│   │   ├── grid_config.json         # Grid strategy config
+│   │   └── supertrend_config.json   # Supertrend strategy config
+│   └── templates/
+│       └── example-config.yaml      # Backtest config template
 ├── requirements.txt         # Dependencies
 ├── Makefile                # Build automation
 ├── LICENSE                 # MIT License
@@ -555,16 +559,16 @@ trading-strategies-openalgo/
 
 ```bash
 # Basic backtest with synthetic data
-python -m scripts.backtest --config config.yaml
+python -m scripts.backtest --config configs/active/config.yaml
 
-# With custom date range (edit config.yaml):
+# With custom date range (edit configs/active/config.yaml):
 data:
   start: "2023-01-01"
   end: "2023-12-31"
   symbol: "RELIANCE"
 
 # Run backtest and analyze results
-python -m scripts.backtest --config config.yaml
+python -m scripts.backtest --config configs/active/config.yaml
 ```
 
 ### Web Interface
@@ -642,7 +646,7 @@ python -m scripts.backtest --config config.yaml
 ## Debugging
 
 For issues and questions:
-1. Check configuration in `config.yaml` set logging to DEBUG
+1. Check configuration in `configs/active/config.yaml` set logging to DEBUG
 2. Review logs in `backtest.log`
 3. Test with synthetic data first
 4. Verify OpenAlgo connection

@@ -11,6 +11,9 @@ import re
 from ..models.config import AppConfig
 
 
+DEFAULT_CONFIG_PATH = "configs/active/config.yaml"
+
+
 def substitute_env_vars(config_str: str) -> str:
     """
     Substitute environment variables in config string.
@@ -35,7 +38,7 @@ def substitute_env_vars(config_str: str) -> str:
     return re.sub(pattern, replacer, config_str)
 
 
-def load_config(config_path: str = "config.yaml") -> AppConfig:
+def load_config(config_path: str = DEFAULT_CONFIG_PATH) -> AppConfig:
     """
     Load configuration from YAML file with environment variable substitution.
     
@@ -77,7 +80,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         raise ValueError(f"Error loading configuration: {e}")
 
 
-def save_config(config: AppConfig, config_path: str = "config.yaml") -> None:
+def save_config(config: AppConfig, config_path: str = DEFAULT_CONFIG_PATH) -> None:
     """
     Save configuration to YAML file.
     

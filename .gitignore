@@ -2,9 +2,11 @@ __pycache__
 *.pyc
 .cache
 .env
-config.yaml
+configs/active/config.yaml
 .DS_Store
-grid_config.json
+configs/active/grid_config.json
+configs/active/supertrend_config.json
 .pytest_cache
 *.log
 .vscode
+configs/active/

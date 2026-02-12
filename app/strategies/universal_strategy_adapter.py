@@ -357,11 +357,11 @@ class UniversalStrategyAdapter(BaseStrategy):
             'symbol': order.symbol,
             'action': order.action.value,
             'quantity': order.quantity,
-            'filled_price': order.filled_price,
+            'filled_price': order.avg_fill_price,
             'timestamp': order.filled_at
         }
         self.recent_fills[order.id] = fill_info
-        logger.debug(f"Order fill notification: {order.id} at {order.filled_price}")
+        logger.debug(f"Order fill notification: {order.id} at {order.avg_fill_price}")
 
     def get_state(self) -> dict:
         """

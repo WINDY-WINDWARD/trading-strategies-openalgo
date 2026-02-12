@@ -1,6 +1,6 @@
 # scripts/launch_web.py
 """
-Cross-platform script to launch the web UI using settings from config.yaml.
+Cross-platform script to launch the web UI using settings from configs/active/config.yaml.
 """
 
 import sys
@@ -27,6 +27,6 @@ if __name__ == "__main__":
             log_level=config.logging.level.lower()
         )
     except FileNotFoundError:
-        print("❌ Error: config.yaml not found. Please ensure the configuration file exists.")
+        print("❌ Error: configs/active/config.yaml not found. Please ensure the configuration file exists.")
     except Exception as e:
         print(f"❌ Failed to start web server: {e}")

@@ -21,7 +21,7 @@ from app.strategies import StrategyRegistry
 
 
 @click.command()
-@click.option('--config', '-c', default='config.yaml', help='Configuration file path')
+@click.option('--config', '-c', default='configs/active/config.yaml', help='Configuration file path')
 @click.option('--output', '-o', default=None, help='Output directory for results')
 @click.option('--verbose', '-v', is_flag=True, help='Verbose logging')
 def main(config, output, verbose):

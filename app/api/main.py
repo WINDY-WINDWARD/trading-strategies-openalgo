@@ -26,7 +26,7 @@ try:
 except Exception as e:
     # Fallback to basic logging if config loading fails
     setup_logging(level="DEBUG")
-    print(f"Warning: Could not load config.yaml, using default logging: {e}")
+    print(f"Warning: Could not load configs/active/config.yaml, using default logging: {e}")
 
 logger = logging.getLogger(__name__)
 

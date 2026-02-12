@@ -72,7 +72,7 @@ def auto_register_strategies():
 #### Step 3: Use It!
 
 ```yaml
-# config.yaml
+# configs/active/config.yaml
 strategy:
   type: mynew  # ← Your new strategy
   my_param1: 20
@@ -464,7 +464,7 @@ class YourBot(TradingBot):
 - [ ] Implemented `run_backtest(current_price)` method
 - [ ] Implemented all required `TradingBot` methods
 - [ ] Registered strategy in `registry.py`
-- [ ] Added configuration in `config.yaml`
+- [ ] Added configuration in `configs/active/config.yaml`
 - [ ] Tested with test script
 - [ ] Documented any special requirements
 

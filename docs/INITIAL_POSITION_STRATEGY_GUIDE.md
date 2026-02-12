@@ -49,7 +49,7 @@ Previously, the bot would place sell orders immediately upon startup, even when 
 
 ## Configuration
 
-Add this setting to your `grid_config.json` file:
+Add this setting to your `configs/active/grid_config.json` file:
 
 ```json
 {

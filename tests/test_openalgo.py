@@ -65,7 +65,7 @@ def test_openalgo_provider():
     print("   - ✅ Ready for production use with valid API key")
     print("\n💡 To use with real data:")
     print("   1. Get OpenAlgo API key from your broker")
-    print("   2. Update config.yaml with real API key and server URL")
+    print("   2. Update configs/active/config.yaml with real API key and server URL")
     print("   3. Run OpenAlgo server or use broker's OpenAlgo endpoint")
 
 if __name__ == "__main__":
