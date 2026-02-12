@@ -19,6 +19,8 @@ Common commands
 - Run the web dashboard: `make web` (launches `scripts/launch_web.py`)
 - Run a backtest (CLI): `python -m scripts.backtest --config config.yaml`
 - Start the grid bot (example): `python run_grid_bot.py`
+- Start live trading: `make live` (launches `launch_trading_bot.py`)
+- Clean cache files: `make clean` (removes __pycache__, .pyc, etc.)
 
 Test commands
 - Run all tests: `python run_tests.py` or `pytest -q`
@@ -33,9 +35,9 @@ Test commands
 Linting and formatting
 - Formatting (auto): `black .` (project follows Black defaults)
 - Import sorting: `isort .` before committing
-- Linting: `flake8` (run with `flake8 .`) — address W,E,F style issues
+- Linting: `ruff check .` or `flake8 .` — address style issues
 - Optional static types: `mypy app` (if mypy added to dev deps)
-- Recommended pre-commit hooks (suggested): black, isort, flake8, mypy
+- Recommended pre-commit hooks (suggested): black, isort, ruff/flake8
 
 Running commands as an agent
 - Always run tests after changing behavior (unit tests + relevant integration
@@ -86,7 +88,7 @@ Code style guidelines (for automated agents)
   larger than ~400 lines consider extracting helpers into another module.
 
 6) Error handling
-- Don’t use bare `except:`. Catch specific exceptions (e.g., `except ValueError:`)
+- Don't use bare `except:`. Catch specific exceptions (e.g., `except ValueError:`)
   or `except (ValueError, KeyError):` when appropriate.
 - Use `raise` without arguments inside an `except` block to re-raise the same
   exception after additional logging/cleanup.
@@ -119,7 +121,7 @@ Code style guidelines (for automated agents)
 - When adding new behavior, include or update tests that cover it.
 
 11) CI / Automation guidance
-- CI should run: formatting (black --check), isort --check-only, flake8,
+- CI should run: formatting (black --check), isort --check-only, ruff/flake8,
   pytest (with coverage), and (optionally) mypy. Failing checks should block merge.
 
 12) Security and secrets
@@ -133,7 +135,7 @@ Code style guidelines (for automated agents)
 Next steps for agents
 - After adding/patching code run the single test(s) that touch the area:
   - `pytest path/to/test.py::test_name -q`
-- Run `black . && isort . && flake8 .` locally before creating a PR.
+- Run `black . && isort . && ruff check .` locally before creating a PR.
 
 Contact / docs
 - For high-level project documentation see `README.md` and `docs/`.
