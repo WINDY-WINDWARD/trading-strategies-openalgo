@@ -81,6 +81,28 @@ strategy:
 
 **That's it!** Your strategy is now fully integrated with the backtesting system.
 
+#### Step 4: (Optional) Expose in Web Config Editor
+
+To make a strategy user-visible in the configuration editor dropdown, add it to:
+
+```yaml
+# configs/active/strats.yaml
+strategies:
+    - id: grid
+        label: Grid
+        config_path: configs/active/config.yaml
+    - id: supertrend
+        label: Supertrend
+        config_path: configs/active/config-supertrend.yaml
+    - id: mynew
+        label: My New Strategy
+        config_path: configs/active/config.yaml
+```
+
+If you want a strategy available in code but hidden from end users, keep it out of `strats.yaml`.
+
+For the full rollout checklist (code + UI + docs), see [NEW_STRATEGY_DOCUMENTATION_SETUP.md](NEW_STRATEGY_DOCUMENTATION_SETUP.md).
+
 ---
 
 ## 📝 Configuration

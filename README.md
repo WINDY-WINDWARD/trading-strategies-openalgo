@@ -360,6 +360,7 @@ Comprehensive guides to help you get started and master the platform:
 ### Platform Documentation
 - **[Web Dashboard Guide](docs/WEB_DASHBOARD_README.md)** - Interactive web interface for monitoring and controlling your trading bots
 - **[Quick Start Guide](docs/QUICK_START_GUIDE.md)** - Get up and running in minutes
+- **[New Strategy Documentation Setup](docs/NEW_STRATEGY_DOCUMENTATION_SETUP.md)** - Checklist for adding a new strategy and documenting it end-to-end
 
 ### Additional Resources
 - **[README](README.md)** - This file - comprehensive overview of all features
@@ -427,10 +428,20 @@ pip install -r requirements.txt
 cp configs/templates/example-config.yaml configs/active/config.yaml
 # Edit with your parameters
 ```
+
+The web configuration editor strategy dropdown is driven by:
+
+```bash
+configs/active/strats.yaml
+```
+
+Default user-visible strategies are `grid` and `supertrend`.
+
 **Key configurations:**
 - Set `OPENALGO_API_KEY` environment variable or use synthetic data
 - Configure strategy parameters in `strategy` section
 - Adjust risk parameters in `backtest` section
+- Control strategy visibility in UI using `configs/active/strats.yaml`
 
 ### 2.5. Quick Verification
 
@@ -539,10 +550,12 @@ trading-strategies-openalgo/
 │   └── SupertrendDashboard.html # Supertrend dashboard
 ├── docs/                    # Documentation
 │   ├── GRID_TRADING_GUIDE.md
+│   ├── NEW_STRATEGY_DOCUMENTATION_SETUP.md
 │   └── WEB_DASHBOARD_README.md
 ├── configs/
 │   ├── active/
 │   │   ├── config.yaml              # Main configuration
+│   │   ├── strats.yaml              # UI strategy catalog (dropdown + config path)
 │   │   ├── grid_config.json         # Grid strategy config
 │   │   └── supertrend_config.json   # Supertrend strategy config
 │   └── templates/

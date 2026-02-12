@@ -14,7 +14,12 @@ from fastapi.responses import StreamingResponse
 import csv
 import io
 
-from ...utils.config_loader import load_config, save_config, get_default_config
+from ...utils.config_loader import (
+    load_config,
+    save_config,
+    get_default_config,
+    load_strategy_catalog,
+)
 from ...models.config import AppConfig
 from ...core.backtest_engine import BacktestEngine
 from ...strategies import StrategyRegistry
@@ -245,6 +250,17 @@ async def get_config():
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
+@router.get("/api/strategies")
+async def get_strategies():
+    """Get user-visible strategy list for UI dropdowns."""
+    try:
+        strategies = load_strategy_catalog()
+        return JSONResponse(content={"strategies": strategies})
+    except Exception as e:
+        logger.error(f"Failed to load strategy catalog: {e}", exc_info=True)
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
 @router.get("/api/results/{run_id}/export-csv")
 async def export_trades_csv(run_id: str):
     """Export trades for a backtest run as CSV file"""
@@ -275,6 +291,29 @@ async def export_trades_csv(run_id: str):
 async def update_config(config_data: Dict[str, Any]):
     """Update and save the application configuration."""
     try:
+        strategy_type = config_data.get("strategy", {}).get("type")
+        if not strategy_type:
+            return JSONResponse(status_code=400, content={"error": "strategy.type is required"})
+
+        catalog = load_strategy_catalog()
+        allowed_strategy_ids = {item["id"] for item in catalog}
+        if strategy_type not in allowed_strategy_ids:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": (
+                        f"Strategy '{strategy_type}' is not enabled for UI. "
+                        f"Allowed: {sorted(allowed_strategy_ids)}"
+                    )
+                },
+            )
+
+        if not StrategyRegistry.is_registered(strategy_type):
+            return JSONResponse(
+                status_code=400,
+                content={"error": f"Strategy '{strategy_type}' is not registered in backend"},
+            )
+
         config = AppConfig(**config_data)
         save_config(config)
         return JSONResponse(content={"message": "Configuration saved successfully."})
