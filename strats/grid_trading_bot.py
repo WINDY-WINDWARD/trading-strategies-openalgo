@@ -26,7 +26,7 @@ class GridTradingBot(TradingBot):
 
     def __init__(self, 
                  api_key: str,
-                 host: str = 'http://127.0.0.1:5000',
+                 host: str = 'http://127.0.0.1:8800',
                  symbol: str = 'RELIANCE',
                  exchange: str = 'NSE',
                  grid_levels: int = 10,
@@ -1138,7 +1138,7 @@ def main():
     # Configuration
     config = {
         'api_key': '89fd8eaa346fb5e91bcbe8a3490b3d7b9c9c7defbe2babefd3037f11a41376a7',  # Replace with actual API key
-        'host': 'http://127.0.0.1:5000',
+        'host': 'http://127.0.0.1:8800',
         'symbol': 'IDFCFIRSTB',
         'exchange': 'NSE',
         'grid_levels': 7,                   # 7 levels above and below = 14 total orders

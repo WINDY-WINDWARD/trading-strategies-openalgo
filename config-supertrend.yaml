@@ -21,7 +21,7 @@ logging:
   level: INFO
 openalgo:
   api_key: 89fd8eaa346fb5e91bcbe8a3490b3d7b9c9c7defbe2babefd3037f11a41376a7
-  base_url: http://127.0.0.1:5000
+  base_url: http://127.0.0.1:8800
   cache_max_age_hours: 24
   force_cache_use: true
   retry_attempts: 3

@@ -101,7 +101,7 @@ def get_default_config() -> AppConfig:
     default_config = {
         "openalgo": {
             "api_key": "",
-            "base_url": "http://127.0.0.1:5000",
+            "base_url": "http://127.0.0.1:8800",
             "timeout": 30,
             "retry_attempts": 3
         },

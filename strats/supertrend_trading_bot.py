@@ -18,7 +18,7 @@ class SupertrendTradingBot(TradingBot):
     def __init__(self,
                  api_key: str,
                  symbol: str,
-                 host: str = 'http://127.0.0.1:5000',
+                 host: str = 'http://127.0.0.1:8800',
                  exchange: str = 'NSE',
                  state_file: str = 'supertrend_state.json',
                  take_profit_pct: float = 5.0,
@@ -32,7 +32,7 @@ class SupertrendTradingBot(TradingBot):
         Args:
             api_key (str): The API key for the trading platform.
             symbol (str): The trading symbol to use.
-            host (str, optional): The host of the trading API. Defaults to 'http://127.0.0.1:5000'.
+            host (str, optional): The host of the trading API. Defaults to 'http://127.0.0.1:8800'.
             exchange (str, optional): The exchange to trade on. Defaults to 'NSE'.
             state_file (str, optional): The file to save the bot's state to. Defaults to 'supertrend_state.json'.
             take_profit_pct (float, optional): The percentage to take profit at. Defaults to 5.0.

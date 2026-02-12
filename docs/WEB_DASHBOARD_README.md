@@ -44,7 +44,7 @@ python web_dashboard.py
 
 ### Prerequisites
 - Python 3.7+
-- OpenAlgo platform running (default: http://127.0.0.1:5000)
+- OpenAlgo platform running (default: http://127.0.0.1:8800)
 - Valid `grid_config.json` configuration file
 
 ### Install Dependencies
@@ -158,7 +158,7 @@ The web dashboard uses your existing `grid_config.json` configuration file. No a
 {
   "api_settings": {
     "api_key": "your-openalgo-api-key",
-    "host": "http://127.0.0.1:5000"
+    "host": "http://127.0.0.1:8800"
   },
   "trading_settings": {
     "symbol": "IDFCFIRSTB",

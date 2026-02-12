@@ -1,7 +1,7 @@
 {
     "api_settings": {
         "api_key": "",
-        "host": "http://127.0.0.1:5000"
+        "host": "http://127.0.0.1:8800"
     },
     "trading_settings": {
         "symbol": "IDFCFIRSTB",

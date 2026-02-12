@@ -2,7 +2,7 @@
 {
   "api_settings": {
     "api_key": "",
-    "host": "http://127.0.0.1:5000",
+    "host": "http://127.0.0.1:8800",
     "comment": "Replace api_key with your actual OpenAlgo API key from the platform"
   },
   "trading_settings": {
