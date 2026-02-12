@@ -26,7 +26,7 @@ class GridTradingBot(TradingBot):
 
     def __init__(self, 
                  api_key: str,
-                 host: str = 'http://127.0.0.1:5000',
+                 host: str = 'http://127.0.0.1:8800',
                  symbol: str = 'RELIANCE',
                  exchange: str = 'NSE',
                  grid_levels: int = 10,
@@ -303,6 +303,13 @@ class GridTradingBot(TradingBot):
                                 }
                                 success_count += 1
 
+            if success_count == 0:
+                self.logger.warning(
+                    "Grid setup placed 0 orders. Likely cause: `order_amount` is too low "
+                    "for current price levels, resulting in zero quantity after floor division. "
+                    f"Current center price={center_price:.2f}, order_amount={self.order_amount}."
+                )
+
             self.logger.info(f"Grid setup complete: {success_count} orders placed")
             return success_count > 0
 
@@ -499,12 +506,15 @@ class GridTradingBot(TradingBot):
                         order_details = self.pending_orders[order_id]
 
                         # Order was filled
+                        order_price = order_details.get('price', 0)
+                        fill_price = float(order.get('price') or order_price or 0)
+                        
                         filled_order = {
                             'order_id': order_id,
-                            'type': order_details['type'],
-                            'price': order_details['price'],
-                            'quantity': order_details['quantity'],
-                            'fill_price': float(order.get('price', order_details['price'])),
+                            'type': order_details.get('type', 'UNKNOWN'),
+                            'price': order_price,
+                            'quantity': order_details.get('quantity', 0),
+                            'fill_price': fill_price,
                             'timestamp': datetime.now()
                         }
 
@@ -515,26 +525,29 @@ class GridTradingBot(TradingBot):
                         del self.pending_orders[order_id]
 
                         # Remove from buy/sell orders
-                        price = order_details['price']
-                        if order_details['type'] == 'BUY' and price in self.buy_orders:
+                        price = order_price
+                        order_type = filled_order['type']
+                        order_quantity = filled_order['quantity']
+                        
+                        if order_type == 'BUY' and price in self.buy_orders:
                             del self.buy_orders[price]
-                        elif order_details['type'] == 'SELL' and price in self.sell_orders:
+                        elif order_type == 'SELL' and price in self.sell_orders:
                             del self.sell_orders[price]
 
                         # Update position and profit
-                        if order_details['type'] == 'BUY':
-                            self.current_position += order_details['quantity']
-                            self.logger.info(f"Buy order filled: position increased from {self.current_position - order_details['quantity']} to {self.current_position}")
+                        if order_type == 'BUY':
+                            self.current_position += order_quantity
+                            self.logger.info(f"Buy order filled: position increased from {self.current_position - order_quantity} to {self.current_position}")
                         else:
-                            self.current_position -= order_details['quantity']
-                            self.logger.info(f"Sell order filled: position decreased from {self.current_position + order_details['quantity']} to {self.current_position}")
+                            self.current_position -= order_quantity
+                            self.logger.info(f"Sell order filled: position decreased from {self.current_position + order_quantity} to {self.current_position}")
 
                         self.total_trades += 1
 
                         # Place opposite order (grid refill)
                         self.place_opposite_order(filled_order)
 
-                        self.logger.info(f"Order filled: {order_details['type']} {order_details['quantity']} @ {filled_order['fill_price']}")
+                        self.logger.info(f"Order filled: {order_type} {order_quantity} @ {fill_price}")
 
         except Exception as e:
             self.logger.error(f"Error checking filled orders: {e}")
@@ -1138,7 +1151,7 @@ def main():
     # Configuration
     config = {
         'api_key': '89fd8eaa346fb5e91bcbe8a3490b3d7b9c9c7defbe2babefd3037f11a41376a7',  # Replace with actual API key
-        'host': 'http://127.0.0.1:5000',
+        'host': 'http://127.0.0.1:8800',
         'symbol': 'IDFCFIRSTB',
         'exchange': 'NSE',
         'grid_levels': 7,                   # 7 levels above and below = 14 total orders

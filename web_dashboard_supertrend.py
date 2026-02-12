@@ -31,12 +31,13 @@ monitoring_active = False
 trading_thread = None
 trading_active = False
 ohlc_data = None
+SUPERTREND_CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'configs', 'active', 'supertrend_config.json')
 
 def load_bot_config():
     """Load configuration and initialize bot"""
     global bot
     try:
-        with open('supertrend_config.json', 'r') as f:
+        with open(SUPERTREND_CONFIG_PATH, 'r') as f:
             config = json.load(f)
         
         api_key = config['api_settings']['api_key']
@@ -61,7 +62,7 @@ def load_bot_config():
         return True
         
     except Exception as e:
-        print(f"Error loading bot config: {e}")
+        print(f"Error loading bot config from {SUPERTREND_CONFIG_PATH}: {e}")
         return False
 
 @app.route('/')

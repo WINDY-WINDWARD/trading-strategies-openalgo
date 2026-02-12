@@ -360,6 +360,7 @@ Comprehensive guides to help you get started and master the platform:
 ### Platform Documentation
 - **[Web Dashboard Guide](docs/WEB_DASHBOARD_README.md)** - Interactive web interface for monitoring and controlling your trading bots
 - **[Quick Start Guide](docs/QUICK_START_GUIDE.md)** - Get up and running in minutes
+- **[New Strategy Documentation Setup](docs/NEW_STRATEGY_DOCUMENTATION_SETUP.md)** - Checklist for adding a new strategy and documenting it end-to-end
 
 ### Additional Resources
 - **[README](README.md)** - This file - comprehensive overview of all features
@@ -424,13 +425,23 @@ pip install -r requirements.txt
 ### 2. Configuration
 
 ```bash
-cp example-config.yaml config.yaml
+cp configs/templates/example-config.yaml configs/active/config.yaml
 # Edit with your parameters
 ```
+
+The web configuration editor strategy dropdown is driven by:
+
+```bash
+configs/active/strats.yaml
+```
+
+Default user-visible strategies are `grid` and `supertrend`.
+
 **Key configurations:**
 - Set `OPENALGO_API_KEY` environment variable or use synthetic data
 - Configure strategy parameters in `strategy` section
 - Adjust risk parameters in `backtest` section
+- Control strategy visibility in UI using `configs/active/strats.yaml`
 
 ### 2.5. Quick Verification
 
@@ -451,7 +462,7 @@ python tests/test_openalgo.py
 
 ```bash
 # CLI execution
-python -m scripts.backtest --config config.yaml
+python -m scripts.backtest --config configs/active/config.yaml
 
 # Web interface
 make web
@@ -466,7 +477,7 @@ make web
 
 ### 5. Live Trading
 ```bash
-# uses grid_config.json
+# uses configs/active/grid_config.json
 # Web interface
 make live
 # Visit http://localhost:5001 (check printed URL)
@@ -539,10 +550,16 @@ trading-strategies-openalgo/
 │   └── SupertrendDashboard.html # Supertrend dashboard
 ├── docs/                    # Documentation
 │   ├── GRID_TRADING_GUIDE.md
+│   ├── NEW_STRATEGY_DOCUMENTATION_SETUP.md
 │   └── WEB_DASHBOARD_README.md
-├── config.yaml              # Main configuration
-├── grid_config.json         # Grid strategy config
-├── supertrend_config.json   # Supertrend strategy config
+├── configs/
+│   ├── active/
+│   │   ├── config.yaml              # Main configuration
+│   │   ├── strats.yaml              # UI strategy catalog (dropdown + config path)
+│   │   ├── grid_config.json         # Grid strategy config
+│   │   └── supertrend_config.json   # Supertrend strategy config
+│   └── templates/
+│       └── example-config.yaml      # Backtest config template
 ├── requirements.txt         # Dependencies
 ├── Makefile                # Build automation
 ├── LICENSE                 # MIT License
@@ -555,16 +572,16 @@ trading-strategies-openalgo/
 
 ```bash
 # Basic backtest with synthetic data
-python -m scripts.backtest --config config.yaml
+python -m scripts.backtest --config configs/active/config.yaml
 
-# With custom date range (edit config.yaml):
+# With custom date range (edit configs/active/config.yaml):
 data:
   start: "2023-01-01"
   end: "2023-12-31"
   symbol: "RELIANCE"
 
 # Run backtest and analyze results
-python -m scripts.backtest --config config.yaml
+python -m scripts.backtest --config configs/active/config.yaml
 ```
 
 ### Web Interface
@@ -642,7 +659,7 @@ python -m scripts.backtest --config config.yaml
 ## Debugging
 
 For issues and questions:
-1. Check configuration in `config.yaml` set logging to DEBUG
+1. Check configuration in `configs/active/config.yaml` set logging to DEBUG
 2. Review logs in `backtest.log`
 3. Test with synthetic data first
 4. Verify OpenAlgo connection

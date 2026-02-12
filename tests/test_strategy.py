@@ -6,11 +6,15 @@ Test script for the new initial position strategy feature
 import json
 import sys
 import os
+from pathlib import Path
 
 # Add the project root to Python path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from strats.grid_trading_bot import GridTradingBot
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+GRID_CONFIG_PATH = PROJECT_ROOT / 'configs' / 'active' / 'grid_config.json'
 
 def test_initial_position_strategy():
     """Test the new initial position strategy functionality"""
@@ -19,7 +23,7 @@ def test_initial_position_strategy():
     
     # Load config
     try:
-        with open('grid_config.json', 'r') as f:
+        with open(GRID_CONFIG_PATH, 'r', encoding='utf-8') as f:
             config = json.load(f)
     except Exception as e:
         print(f"❌ Error loading config: {e}")

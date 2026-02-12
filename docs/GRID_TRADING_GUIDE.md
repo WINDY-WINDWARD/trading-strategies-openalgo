@@ -61,13 +61,13 @@ pip install openalgo pandas numpy
 
 # Download the bot files
 # - grid_trading_bot.py
-# - grid_config.json  
+# - configs/active/grid_config.json  
 # - run_grid_bot.py
 ```
 
 ### Configuration
 
-Edit `grid_config.json` with your settings:
+Edit `configs/active/grid_config.json` with your settings:
 
 ```json
 {

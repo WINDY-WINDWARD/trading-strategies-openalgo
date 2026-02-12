@@ -171,11 +171,12 @@ class MockOpenAlgoClient:
         # Add recent fills that the bot hasn't processed yet
         if hasattr(self._adapter, 'recent_fills'):
             for order_id, fill_info in list(self._adapter.recent_fills.items()):
-                logger.debug(f"Mock Client: Adding recent fill {order_id} - Status: complete, Price: {fill_info['price']}")
+                fill_price = fill_info.get('filled_price') or fill_info.get('price', 0.0)
+                logger.debug(f"Mock Client: Adding recent fill {order_id} - Status: complete, Price: {fill_price}")
                 bot_orders.append({
                     'orderid': order_id,
                     'order_status': 'complete',
-                    'price': fill_info['price']
+                    'price': fill_price
                 })
 
         logger.info(f"Mock Client: Returning {len(bot_orders)} orders to bot")

@@ -11,7 +11,7 @@ from datetime import datetime, date
 class OpenAlgoConfig(BaseModel):
     """OpenAlgo API configuration."""
     api_key: str = Field(..., description="OpenAlgo API key")
-    base_url: str = Field(default="http://127.0.0.1:5000", description="OpenAlgo base URL")
+    base_url: str = Field(default="http://127.0.0.1:8800", description="OpenAlgo base URL")
     timeout: int = Field(default=30, description="Request timeout in seconds")
     retry_attempts: int = Field(default=3, description="Number of retry attempts")
     # Cache configuration

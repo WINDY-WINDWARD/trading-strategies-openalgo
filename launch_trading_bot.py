@@ -13,6 +13,9 @@ import time
 import webbrowser
 from datetime import datetime
 
+GRID_CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'configs', 'active', 'grid_config.json')
+SUPERTREND_CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'configs', 'active', 'supertrend_config.json')
+
 def run_web_dashboard():
     """Run the grid trading web dashboard in a separate thread"""
     try:
@@ -111,22 +114,22 @@ def main():
     try:
         choice = input("Select option (1-7): ").strip()
         if choice == '1':
-            if not os.path.exists('grid_config.json'):
-                print("❌ Configuration file 'grid_config.json' not found!")
+            if not os.path.exists(GRID_CONFIG_PATH):
+                print(f"❌ Configuration file '{GRID_CONFIG_PATH}' not found!")
                 print("Please run the CLI interface first to set up your configuration.")
                 sys.exit(1)
             print("\n🌐 Starting Grid Web Dashboard...")
             run_web_dashboard()
         elif choice == '2':
-            if not os.path.exists('grid_config.json'):
-                print("❌ Configuration file 'grid_config.json' not found!")
+            if not os.path.exists(GRID_CONFIG_PATH):
+                print(f"❌ Configuration file '{GRID_CONFIG_PATH}' not found!")
                 print("Please run the CLI interface first to set up your configuration.")
                 sys.exit(1)
             print("\n💻 Starting Grid CLI Interface...")
             run_cli_interface()
         elif choice == '3':
-            if not os.path.exists('grid_config.json'):
-                print("❌ Configuration file 'grid_config.json' not found!")
+            if not os.path.exists(GRID_CONFIG_PATH):
+                print(f"❌ Configuration file '{GRID_CONFIG_PATH}' not found!")
                 print("Please run the CLI interface first to set up your configuration.")
                 sys.exit(1)
             print("\n🚀 Starting both Grid interfaces...")
@@ -136,22 +139,22 @@ def main():
             time.sleep(3)
             run_cli_interface()
         elif choice == '4':
-            if not os.path.exists('supertrend_config.json'):
-                print("❌ Configuration file 'supertrend_config.json' not found!")
+            if not os.path.exists(SUPERTREND_CONFIG_PATH):
+                print(f"❌ Configuration file '{SUPERTREND_CONFIG_PATH}' not found!")
                 print("Please run the Supertrend CLI interface first to set up your configuration.")
                 sys.exit(1)
             print("\n🌐 Starting Supertrend Web Dashboard...")
             run_web_dashboard_supertrend()
         elif choice == '5':
-            if not os.path.exists('supertrend_config.json'):
-                print("❌ Configuration file 'supertrend_config.json' not found!")
+            if not os.path.exists(SUPERTREND_CONFIG_PATH):
+                print(f"❌ Configuration file '{SUPERTREND_CONFIG_PATH}' not found!")
                 print("Please run the Supertrend CLI interface first to set up your configuration.")
                 sys.exit(1)
             print("\n💻 Starting Supertrend CLI Interface...")
             run_cli_interface_supertrend()
         elif choice == '6':
-            if not os.path.exists('supertrend_config.json'):
-                print("❌ Configuration file 'supertrend_config.json' not found!")
+            if not os.path.exists(SUPERTREND_CONFIG_PATH):
+                print(f"❌ Configuration file '{SUPERTREND_CONFIG_PATH}' not found!")
                 print("Please run the Supertrend CLI interface first to set up your configuration.")
                 sys.exit(1)
             print("\n🚀 Starting both Supertrend interfaces...")

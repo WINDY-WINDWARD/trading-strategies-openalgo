@@ -1,9 +1,9 @@
-A<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grid Trading Backtester</title>
+    <title>Trading Backtester</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
     <style>
@@ -68,7 +68,7 @@ A<!DOCTYPE html>
 <body>
     <nav class="navbar navbar-expand-lg bg-body-tertiary border-bottom">
         <div class="container-fluid">
-            <a class="navbar-brand" href="#">📈 Grid Trading Backtester</a>
+            <a class="navbar-brand" href="#">📈 Trading Backtester</a>
             <div id="ws-status" class="text-secondary">
                 <span class="spinner-grow spinner-grow-sm text-secondary" role="status"></span>
                 Connecting...
@@ -116,6 +116,11 @@ A<!DOCTYPE html>
                     <div class="card-body">
                         <h6 class="card-title">Configuration Editor</h6>
                         <form id="config-form">
+                            <div class="mb-3">
+                                <label for="strategy-select" class="form-label fw-bold">Strategy</label>
+                                <select id="strategy-select" class="form-select form-select-sm"></select>
+                                <small id="strategy-config-path" class="form-text text-muted"></small>
+                            </div>
                             <div id="config-fields"></div>
                             <button type="submit" class="btn btn-secondary w-100 mt-2" id="save-config-btn">Save Config</button>
                         </form>
@@ -275,6 +280,8 @@ A<!DOCTYPE html>
             const saveBtn = document.getElementById('save-config-btn');
             const configForm = document.getElementById('config-form');
             const configFields = document.getElementById('config-fields');
+            const strategySelect = document.getElementById('strategy-select');
+            const strategyConfigPath = document.getElementById('strategy-config-path');
             const statusBar = document.getElementById('status-text');
             const progressContainer = document.getElementById('progress-container');
             const progressBar = document.getElementById('progress-bar');
@@ -284,6 +291,33 @@ A<!DOCTYPE html>
 
             let currentRunId = null;
             let currentResults = null; // Store current results for chart updates
+            let loadedConfig = null;
+            let availableStrategies = [];
+
+            const STRATEGY_FIELDS = {
+                grid: [
+                    'grid_levels',
+                    'grid_spacing_pct',
+                    'order_amount',
+                    'grid_type',
+                    'auto_reset',
+                    'initial_position_strategy',
+                    'stop_loss_pct',
+                    'take_profit_pct'
+                ],
+                supertrend: [
+                    'atr_period',
+                    'atr_multiplier',
+                    'max_order_amount',
+                    'buffer_enabled',
+                    'buffer_days',
+                    'buffer_mode',
+                    'stop_loss_pct',
+                    'take_profit_pct'
+                ]
+            };
+
+            const BASE_EDITABLE_SECTIONS = ['openalgo', 'data', 'backtest', 'ui', 'logging'];
 
             // --- WebSocket ---
             function setupWebSocket() {
@@ -617,6 +651,61 @@ A<!DOCTYPE html>
 
             // --- API Calls ---
 
+            function deepCopy(obj) {
+                return JSON.parse(JSON.stringify(obj));
+            }
+
+            function deepMerge(target, source) {
+                if (!source || typeof source !== 'object' || Array.isArray(source)) {
+                    return source;
+                }
+
+                for (const key in source) {
+                    if (!source.hasOwnProperty(key)) continue;
+                    const sourceValue = source[key];
+
+                    if (sourceValue && typeof sourceValue === 'object' && !Array.isArray(sourceValue)) {
+                        if (!target[key] || typeof target[key] !== 'object' || Array.isArray(target[key])) {
+                            target[key] = {};
+                        }
+                        deepMerge(target[key], sourceValue);
+                    } else {
+                        target[key] = sourceValue;
+                    }
+                }
+
+                return target;
+            }
+
+            function getSelectedStrategyType() {
+                return strategySelect && strategySelect.value
+                    ? strategySelect.value
+                    : (loadedConfig?.strategy?.type || 'grid');
+            }
+
+            function buildEditableConfig(fullConfig) {
+                const strategyType = getSelectedStrategyType();
+                const strategyFields = STRATEGY_FIELDS[strategyType] || [];
+                const editable = {};
+
+                BASE_EDITABLE_SECTIONS.forEach((section) => {
+                    if (fullConfig && fullConfig[section] !== undefined) {
+                        editable[section] = deepCopy(fullConfig[section]);
+                    }
+                });
+
+                const sourceStrategy = fullConfig?.strategy || {};
+                const strategy = { type: strategyType };
+                strategyFields.forEach((field) => {
+                    if (sourceStrategy[field] !== undefined) {
+                        strategy[field] = sourceStrategy[field];
+                    }
+                });
+                editable.strategy = strategy;
+
+                return editable;
+            }
+
             // Helper: Recursively create form fields for config object
             function createConfigFields(obj, parentKey = '') {
                 let html = '';
@@ -624,6 +713,7 @@ A<!DOCTYPE html>
                     if (!obj.hasOwnProperty(key)) continue;
                     const value = obj[key];
                     const fieldId = parentKey ? `${parentKey}.${key}` : key;
+                    if (fieldId === 'strategy.type') continue;
                     const label = `<label class="form-label fw-bold mt-2" for="${fieldId}">${fieldId.replace(/\./g, ' > ')}</label>`;
                     if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
                         html += `<fieldset class="border rounded p-2 mb-2"><legend class="fs-6">${fieldId}</legend>`;
@@ -698,15 +788,74 @@ A<!DOCTYPE html>
                 return result;
             }
 
-            let loadedConfig = null;
+            function renderConfigForm() {
+                if (!loadedConfig) return;
+                const editableConfig = buildEditableConfig(loadedConfig);
+                configFields.innerHTML = createConfigFields(editableConfig);
+                setFormFields(editableConfig);
+            }
+
+            function renderStrategyDropdown() {
+                if (!strategySelect) return;
+                strategySelect.innerHTML = '';
+
+                availableStrategies.forEach((strategy) => {
+                    const option = document.createElement('option');
+                    option.value = strategy.id;
+                    option.textContent = strategy.label;
+                    option.dataset.configPath = strategy.config_path;
+                    strategySelect.appendChild(option);
+                });
+
+                const currentType = loadedConfig?.strategy?.type;
+                const hasCurrent = availableStrategies.some((item) => item.id === currentType);
+
+                if (hasCurrent) {
+                    strategySelect.value = currentType;
+                } else if (availableStrategies.length > 0) {
+                    strategySelect.value = availableStrategies[0].id;
+                }
+
+                updateStrategyPathHint();
+            }
+
+            function updateStrategyPathHint() {
+                if (!strategyConfigPath || !strategySelect) return;
+                const option = strategySelect.options[strategySelect.selectedIndex];
+                const path = option?.dataset?.configPath || '';
+                strategyConfigPath.textContent = path ? `Config file: ${path}` : '';
+            }
+
+            async function loadStrategies() {
+                try {
+                    const response = await fetch('/api/strategies');
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Failed to load strategy catalog');
+                    }
+                    availableStrategies = Array.isArray(data.strategies) ? data.strategies : [];
+                } catch (e) {
+                    console.error('Failed to load strategy catalog', e);
+                    availableStrategies = [
+                        { id: 'grid', label: 'Grid', config_path: 'configs/active/config.yaml' },
+                        { id: 'supertrend', label: 'Supertrend', config_path: 'configs/active/config-supertrend.yaml' }
+                    ];
+                }
+            }
 
             async function loadConfig() {
                 try {
                     const response = await fetch('/api/config');
                     const config = await response.json();
+                    if (!response.ok) {
+                        throw new Error(config.error || 'Failed to load configuration');
+                    }
                     loadedConfig = config;
-                    configFields.innerHTML = createConfigFields(config);
-                    setFormFields(config);
+                    renderStrategyDropdown();
+                    if (strategySelect?.value) {
+                        loadedConfig.strategy.type = strategySelect.value;
+                    }
+                    renderConfigForm();
                 } catch (e) {
                     console.error("Failed to load config", e);
                     alert("Failed to load configuration.");
@@ -716,13 +865,19 @@ A<!DOCTYPE html>
             async function saveConfig() {
                 try {
                     if (!loadedConfig) throw new Error('Config not loaded');
-                    const config = getFormConfig(loadedConfig);
+
+                    const editableConfig = buildEditableConfig(loadedConfig);
+                    const updatedVisibleConfig = getFormConfig(editableConfig);
+                    const config = deepMerge(deepCopy(loadedConfig), updatedVisibleConfig);
+                    config.strategy.type = getSelectedStrategyType();
+
                     const response = await fetch('/api/config', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(config)
                     });
                     if (response.ok) {
+                        loadedConfig = config;
                         updateStatus('Configuration saved.');
                     } else {
                         const error = await response.json();
@@ -803,6 +958,16 @@ A<!DOCTYPE html>
                     saveConfig();
                 });
             }
+
+            if (strategySelect) {
+                strategySelect.addEventListener('change', function() {
+                    if (loadedConfig?.strategy) {
+                        loadedConfig.strategy.type = strategySelect.value;
+                    }
+                    updateStrategyPathHint();
+                    renderConfigForm();
+                });
+            }
             
             // Chart update functionality
             const updateChartBtn = document.getElementById('updateChart');
@@ -819,7 +984,7 @@ A<!DOCTYPE html>
             }
 
             // --- Initial Load ---
-            loadConfig();
+            loadStrategies().then(loadConfig);
             setupWebSocket();
         });
     </script>

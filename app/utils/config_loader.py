@@ -5,10 +5,27 @@ Configuration loading utilities with environment variable support.
 
 import os
 import yaml
-from typing import Dict, Any
+from typing import Dict, Any, List
 from pathlib import Path
 import re
 from ..models.config import AppConfig
+
+
+DEFAULT_CONFIG_PATH = "configs/active/config.yaml"
+DEFAULT_STRATEGIES_PATH = "configs/active/strats.yaml"
+
+DEFAULT_STRATEGY_CATALOG: List[Dict[str, str]] = [
+    {
+        "id": "grid",
+        "label": "Grid",
+        "config_path": "configs/active/config.yaml",
+    },
+    {
+        "id": "supertrend",
+        "label": "Supertrend",
+        "config_path": "configs/active/config-supertrend.yaml",
+    },
+]
 
 
 def substitute_env_vars(config_str: str) -> str:
@@ -35,7 +52,7 @@ def substitute_env_vars(config_str: str) -> str:
     return re.sub(pattern, replacer, config_str)
 
 
-def load_config(config_path: str = "config.yaml") -> AppConfig:
+def load_config(config_path: str = DEFAULT_CONFIG_PATH) -> AppConfig:
     """
     Load configuration from YAML file with environment variable substitution.
     
@@ -77,7 +94,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         raise ValueError(f"Error loading configuration: {e}")
 
 
-def save_config(config: AppConfig, config_path: str = "config.yaml") -> None:
+def save_config(config: AppConfig, config_path: str = DEFAULT_CONFIG_PATH) -> None:
     """
     Save configuration to YAML file.
     
@@ -101,7 +118,7 @@ def get_default_config() -> AppConfig:
     default_config = {
         "openalgo": {
             "api_key": "",
-            "base_url": "http://127.0.0.1:5000",
+            "base_url": "http://127.0.0.1:8800",
             "timeout": 30,
             "retry_attempts": 3
         },
@@ -147,3 +164,66 @@ def get_default_config() -> AppConfig:
     }
     
     return AppConfig(**default_config)
+
+
+def load_strategy_catalog(strategies_path: str = DEFAULT_STRATEGIES_PATH) -> List[Dict[str, str]]:
+    """
+    Load strategy catalog from YAML.
+
+    Expected format:
+      strategies:
+        - id: grid
+          label: Grid
+          config_path: configs/active/config.yaml
+
+    Falls back to DEFAULT_STRATEGY_CATALOG if file is missing.
+    """
+    path = Path(strategies_path)
+    if not path.exists():
+        return [item.copy() for item in DEFAULT_STRATEGY_CATALOG]
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+    except yaml.YAMLError as e:
+        raise ValueError(f"Invalid YAML in strategy catalog: {e}")
+
+    if not isinstance(data, dict):
+        raise ValueError("Strategy catalog must be a YAML mapping")
+
+    strategies = data.get("strategies")
+    if not isinstance(strategies, list):
+        raise ValueError("'strategies' must be a list")
+
+    normalized: List[Dict[str, str]] = []
+    seen_ids = set()
+    for index, item in enumerate(strategies):
+        if not isinstance(item, dict):
+            raise ValueError(f"Strategy entry at index {index} must be a mapping")
+
+        strategy_id = str(item.get("id", "")).strip().lower()
+        label = str(item.get("label", "")).strip()
+        config_path = str(item.get("config_path", "")).strip()
+
+        if not strategy_id:
+            raise ValueError(f"Strategy entry at index {index} is missing 'id'")
+        if not label:
+            raise ValueError(f"Strategy '{strategy_id}' is missing 'label'")
+        if not config_path:
+            raise ValueError(f"Strategy '{strategy_id}' is missing 'config_path'")
+        if strategy_id in seen_ids:
+            raise ValueError(f"Duplicate strategy id in catalog: '{strategy_id}'")
+
+        seen_ids.add(strategy_id)
+        normalized.append(
+            {
+                "id": strategy_id,
+                "label": label,
+                "config_path": config_path,
+            }
+        )
+
+    if not normalized:
+        raise ValueError("Strategy catalog is empty")
+
+    return normalized

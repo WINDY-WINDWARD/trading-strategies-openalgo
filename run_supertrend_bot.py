@@ -12,25 +12,27 @@ import os
 from datetime import datetime
 from strats.supertrend_trading_bot import SupertrendTradingBot
 
+SUPERTREND_CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'configs', 'active', 'supertrend_config.json')
+
 def load_config():
-    """Load configuration from supertrend_config.json"""
+    """Load configuration from configs/active/supertrend_config.json"""
     try:
-        with open('supertrend_config.json', 'r') as f:
+        with open(SUPERTREND_CONFIG_PATH, 'r') as f:
             config = json.load(f)
         return config
     except FileNotFoundError:
-        print("❌ Configuration file 'supertrend_config.json' not found.")
+        print(f"❌ Configuration file '{SUPERTREND_CONFIG_PATH}' not found.")
         print("Please create the configuration file first.")
         sys.exit(1)
     except json.JSONDecodeError:
-        print("❌ Invalid JSON in supertrend_config.json.")
+        print(f"❌ Invalid JSON in {SUPERTREND_CONFIG_PATH}.")
         sys.exit(1)
 
 def validate_config(config):
     """Validate configuration parameters"""
     api_key = config['api_settings']['api_key']
     if api_key == 'your-openalgo-apikey-here':
-        print("❌ Please update your OpenAlgo API key in supertrend_config.json")
+        print(f"❌ Please update your OpenAlgo API key in {SUPERTREND_CONFIG_PATH}")
         return False
 
     return True

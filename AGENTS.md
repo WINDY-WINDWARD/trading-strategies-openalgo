@@ -7,17 +7,15 @@ Purpose
 
 Repository setup
 - Python 3.10+ is recommended; project was developed with CPython 3.11/3.12
-- Create and activate virtualenv:
-  - python -m venv .venv
-  - source .venv/bin/activate  # (Linux/macOS)
-  - .\.venv\Scripts\Activate  # (Windows PowerShell)
+- activate conda env:
+  - conda activate trade
 - Install dependencies:
   - make dev
   - OR: pip install -r requirements.txt
 
 Common commands
 - Run the web dashboard: `make web` (launches `scripts/launch_web.py`)
-- Run a backtest (CLI): `python -m scripts.backtest --config config.yaml`
+- Run a backtest (CLI): `python -m scripts.backtest --config configs/active/config.yaml`
 - Start the grid bot (example): `python run_grid_bot.py`
 - Start live trading: `make live` (launches `launch_trading_bot.py`)
 - Clean cache files: `make clean` (removes __pycache__, .pyc, etc.)
@@ -126,7 +124,7 @@ Code style guidelines (for automated agents)
 
 12) Security and secrets
 - Never commit secrets or API keys. Use environment variables (e.g., `OPENALGO_API_KEY`)
-  and document required env vars in `README.md` or `config.yaml`.
+  and document required env vars in `README.md` or `configs/active/config.yaml`.
 
 13) When in doubt
 - Write a failing test that demonstrates the bug or desired behavior, then
