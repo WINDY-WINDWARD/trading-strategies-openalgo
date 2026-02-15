@@ -1,4 +1,6 @@
-# New Strategy Documentation Setup
+# New Strategy Documentation Setup to work with the BACKTESTING UI
+
+For LIVE trading setup, use [NEW_STRATEGY_LIVE_TRADING_SETUP.md](NEW_STRATEGY_LIVE_TRADING_SETUP.md).
 
 Use this checklist whenever you add a new strategy in the future.
 
