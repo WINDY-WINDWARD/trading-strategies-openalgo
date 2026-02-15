@@ -18,7 +18,7 @@ DEFAULT_STRATEGY_CATALOG: List[Dict[str, str]] = [
     {
         "id": "grid",
         "label": "Grid",
-        "config_path": "configs/active/config.yaml",
+        "config_path": "configs/active/config-grid.yaml",
     },
     {
         "id": "supertrend",
