@@ -53,6 +53,11 @@ class MyNewTradingBot(TradingBot):
     # ... etc
 ```
 
+Important in this repository:
+- Bot `__init__` should accept `api_key` and `host` (universal adapter injects both).
+- The strategy must be added to `StrategyConfig.validate_strategy_type` in `app/models/config.py`.
+- Any strategy-specific fields you want from YAML/UI must be declared in `StrategyConfig`.
+
 #### Step 2: Register Your Strategy
 
 Add one line to `app/strategies/registry.py`:
@@ -92,14 +97,14 @@ To make a strategy user-visible in the configuration editor dropdown, add it to:
 # configs/active/strats.yaml
 strategies:
     - id: grid
-        label: Grid
-        config_path: configs/active/config-grid.yaml
+      label: Grid
+      config_path: configs/active/config-grid.yaml
     - id: supertrend
-        label: Supertrend
-        config_path: configs/active/config-supertrend.yaml
+      label: Supertrend
+      config_path: configs/active/config-supertrend.yaml
     - id: mynew
-        label: My New Strategy
-        config_path: configs/active/config-mynew.yaml
+      label: My New Strategy
+      config_path: configs/active/config-mynew.yaml
 ```
 
 If you want a strategy available in code but hidden from end users, keep it out of `strats.yaml`.
@@ -136,12 +141,13 @@ strategy:
   # Buffer configuration
   buffer_enabled: true
   buffer_days: 90
-  buffer_mode: skip_initial  # or 'use_incomplete'
 ```
+
+Set `buffer_mode` to either `skip_initial` or `fetch_additional`.
 
 **Buffer Modes:**
 - `skip_initial`: Wait for 90 days of data before trading
-- `use_incomplete`: Start trading with whatever data is available
+- `fetch_additional`: Start trading with whatever data is available
 
 ---
 
@@ -178,17 +184,19 @@ If your strategy needs historical data:
 ```python
 class MyNewTradingBot(TradingBot):
     def run_backtest(self, current_price):
-        # Access the adapter's historical buffer
-        # (Must have buffer_enabled=true in config)
-        historical_df = self.historical_data  # pandas DataFrame
-        
-        if historical_df is not None and len(historical_df) >= 20:
-            # Calculate indicators using historical data
-            sma_20 = historical_df['close'].tail(20).mean()
-            # ... your logic
+        # Keep bot logic for one-bar decisions.
+        # If you need adapter-managed historical data,
+        # use adapter.get_historical_data() from adapter layer.
+        ...
 ```
 
-The universal adapter automatically maintains this buffer for you!
+The universal adapter maintains this buffer internally. Access it via:
+
+```python
+adapter = StrategyRegistry.get('mynew')
+adapter.initialize(**config)
+historical_df = adapter.get_historical_data()
+```
 
 ---
 
@@ -304,12 +312,9 @@ class MACDTradingBot(TradingBot):
         self.position = 0
     
     def run_backtest(self, current_price):
-        # Get historical data from universal adapter's buffer
-        # (Set buffer_enabled=true, buffer_days=90 in config)
-        if not hasattr(self, 'adapter_historical_data'):
-            return
-        
-        df = self.adapter_historical_data
+        # Use adapter.get_historical_data() from adapter layer
+        # when wiring this bot in your execution flow.
+        return
         
         # Need enough data for MACD
         if len(df) < self.slow_period + self.signal_period:
@@ -376,14 +381,10 @@ Make sure `buffer_enabled: true` in config and access it correctly:
 
 ```python
 def run_backtest(self, current_price):
-    # ❌ Wrong - looking for self.historical_data
-    if self.historical_data:  # Won't work
-        ...
-    
-    # ✅ Correct - access through adapter
-    if hasattr(self, 'adapter_historical_data'):
-        df = self.adapter_historical_data
-        ...
+    # Keep bot focused on per-bar logic.
+    # Adapter-managed historical data is accessed at adapter layer:
+    # df = adapter.get_historical_data()
+    ...
 ```
 
 ---

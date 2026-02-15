@@ -116,6 +116,82 @@ strategy = StrategyRegistry.get(strategy_type)  # One line!
 
 ---
 
+## 🧭 Practical Usage in This Codebase
+
+### Universal Adapter Setup (Recommended)
+
+Use universal adapter by registering only the bot class:
+
+```python
+StrategyRegistry.register('mynew', MyNewTradingBot)
+```
+
+Then ensure these requirements are met:
+
+1. `MyNewTradingBot` implements the full `TradingBot` interface, including `run_backtest(current_price)`.
+2. Bot constructor accepts `api_key` and `host` (injected by `UniversalStrategyAdapter`).
+3. Strategy type is allowed in `StrategyConfig.validate_strategy_type`.
+4. Strategy-specific config fields exist in `StrategyConfig` if they must flow from YAML/UI into adapter initialization.
+5. Strategy is listed in `configs/active/strats.yaml` for UI visibility.
+
+### Buffer Configuration (Universal)
+
+```python
+strategy.initialize(
+    buffer_enabled=True,
+    buffer_days=90,
+    buffer_mode='skip_initial'  # or 'fetch_additional'
+)
+```
+
+- `skip_initial`: wait for buffer warm-up before strategy execution.
+- `fetch_additional`: allow execution with incomplete buffer.
+
+### Accessing Historical Data Correctly
+
+Historical data belongs to the adapter layer. Access it from the adapter:
+
+```python
+adapter = StrategyRegistry.get('mynew')
+adapter.initialize(**config)
+
+historical_df = adapter.get_historical_data()
+```
+
+---
+
+## 🧩 Adding a Custom Adapter (When Needed)
+
+Use a custom adapter when your strategy needs heavy preprocessing, non-standard execution sequencing, or custom lifecycle state.
+
+### Minimal Custom Adapter Pattern
+
+```python
+from app.strategies.base_strategy import BaseStrategy
+
+class MyNewStrategyAdapter(BaseStrategy):
+    def __init__(self):
+        super().__init__("MyNewStrategyAdapter")
+
+    def initialize(self, **params):
+        # custom setup
+        ...
+
+    def on_bar(self, candle):
+        # custom bar processing
+        ...
+```
+
+Register with custom adapter:
+
+```python
+StrategyRegistry.register('mynew', MyNewTradingBot, MyNewStrategyAdapter)
+```
+
+Important: registry instantiates custom adapters with no arguments, so use a zero-argument adapter constructor.
+
+---
+
 ## ✨ Key Features
 
 ### 1. **Universal Buffer System**
@@ -123,7 +199,7 @@ strategy = StrategyRegistry.get(strategy_type)  # One line!
 strategy.initialize(
     buffer_enabled=True,
     buffer_days=90,
-    buffer_mode='skip_initial'  # or 'use_incomplete'
+    buffer_mode='skip_initial'  # or 'fetch_additional'
 )
 ```
 - Automatically accumulates historical data

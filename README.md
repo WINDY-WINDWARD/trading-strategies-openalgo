@@ -250,14 +250,15 @@ The Universal Strategy Adapter eliminates the need for writing 100-500 lines of 
 ```python
 # 1. Implement your strategy (in strats/my_bot.py)
 class MyTradingBot(TradingBot):
-    def __init__(self, api_key, symbol, my_param, **kwargs):
-        super().__init__(api_key, symbol, **kwargs)
+    def __init__(self, api_key, host, symbol, my_param, **kwargs):
+        self.api_key = api_key
+        self.host = host
+        self.symbol = symbol
         self.my_param = my_param
     
     def run_backtest(self, current_price):
         # Your strategy logic here
-        if self.should_buy(current_price):
-            self.place_order('BUY', 100, current_price)
+        self.place_market_order('buy', 100)
 
 # 2. Register it (in app/strategies/registry.py)
 StrategyRegistry.register('mystrategy', MyTradingBot)
@@ -268,11 +269,16 @@ strategy:
   my_param: 42
 ```
 
+Also required in this codebase:
+- add `mystrategy` to `StrategyConfig.validate_strategy_type` in `app/models/config.py`
+- add strategy fields to `StrategyConfig` if they must come from YAML/UI
+- add entry to `configs/active/strats.yaml` for UI visibility
+
 **When to Use Universal vs Custom:**
 - **Universal Adapter**: Simple strategies (RSI, MACD, Grid, Moving Average Cross)
 - **Custom Adapter**: Complex multi-timeframe analysis, heavy DataFrame operations
 
-📚 **Learn More**: See [UNIVERSAL_ADAPTER_SUMMARY.md](docs/UNIVERSAL_ADAPTER_SUMMARY.md) for detailed documentation, examples, and implementation guide.
+📚 **Learn More**: See [UNIVERSAL_ADAPTER_SUMMARY.md](docs/UNIVERSAL_ADAPTER_SUMMARY.md) for adapter internals and [NEW_STRATEGY_DOCUMENTATION_SETUP.md](docs/NEW_STRATEGY_DOCUMENTATION_SETUP.md) for the required end-to-end checklist.
 
 ---
 
@@ -287,17 +293,20 @@ from app.strategies.registry import StrategyRegistry
 
 # 1. Create your bot class
 class RSITradingBot(TradingBot):
-    def __init__(self, api_key, symbol, rsi_period=14, **kwargs):
-        super().__init__(api_key, symbol, **kwargs)
+    def __init__(self, api_key, host, symbol, exchange='NSE', rsi_period=14, **kwargs):
+        self.api_key = api_key
+        self.host = host
+        self.symbol = symbol
+        self.exchange = exchange
         self.rsi_period = rsi_period
     
     def run_backtest(self, current_price):
-        # Calculate RSI and trade
-        rsi = self.calculate_rsi()
+        # Calculate RSI and trade per candle
+        rsi = self.calculate_rsi(current_price)
         if rsi < 30:  # Oversold
-            self.place_order('BUY', 100, current_price)
+            self.place_market_order('buy', 100)
         elif rsi > 70:  # Overbought
-            self.place_order('SELL', 100, current_price)
+            self.place_market_order('sell', 100)
 
 # 2. Register (uses UniversalStrategyAdapter automatically)
 StrategyRegistry.register('rsi', RSITradingBot)
@@ -310,14 +319,15 @@ StrategyRegistry.register('rsi', RSITradingBot)
 from app.strategies.base_strategy import BaseStrategy
 
 class CustomStrategy(BaseStrategy):
+    def initialize(self, **params):
+        ...
+
     def on_bar(self, candle):
         # Implement your trading logic
-        if self.should_buy(candle):
-            self.submit_order(Order(
-                action=OrderAction.BUY,
-                quantity=100,
-                price=candle.close
-            ))
+        ...
+
+# Register custom adapter (must be zero-arg constructible)
+StrategyRegistry.register('mycustom', MyCustomTradingBot, CustomStrategy)
 ```
 
 ### Custom Data Providers
