@@ -1,0 +1,7 @@
+strategies:
+    - id: grid
+        label: Grid
+        config_path: configs/active/config-grid.yaml
+    - id: supertrend
+        label: Supertrend
+        config_path: configs/active/config-supertrend.yaml

@@ -1,0 +1,16 @@
+logging:
+  file: backtest.log
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  level: INFO
+openalgo:
+  api_key: ''
+  base_url: http://127.0.0.1:8800
+  cache_max_age_hours: 24
+  force_cache_use: false
+  retry_attempts: 3
+  timeout: 30
+ui:
+  debug: false
+  host: 0.0.0.0
+  port: 4850
+  title: Backtester

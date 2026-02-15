@@ -6,4 +6,3 @@ __pycache__
 .pytest_cache
 *.log
 .vscode
-configs/active/
