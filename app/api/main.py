@@ -4,6 +4,7 @@ Main FastAPI application for the backtesting web UI.
 """
 
 import logging
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -17,7 +18,7 @@ from .routes import backtest
 
 # Load configuration and setup logging with config values
 try:
-    app_config = load_config()
+    app_config = load_config(strategy_id=os.getenv("WEB_STRATEGY"))
     setup_logging(
         level=app_config.logging.level,
         format_str=app_config.logging.format,
@@ -26,7 +27,7 @@ try:
 except Exception as e:
     # Fallback to basic logging if config loading fails
     setup_logging(level="DEBUG")
-    print(f"Warning: Could not load configs/active/config.yaml, using default logging: {e}")
+    print(f"Warning: Could not load strategy configuration, using default logging: {e}")
 
 logger = logging.getLogger(__name__)
 

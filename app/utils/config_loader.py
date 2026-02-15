@@ -4,10 +4,12 @@ Configuration loading utilities with environment variable support.
 """
 
 import os
-import yaml
-from typing import Dict, Any, List
-from pathlib import Path
 import re
+from pathlib import Path
+from typing import Any, Dict, List
+
+import yaml
+
 from ..models.config import AppConfig
 
 
@@ -52,12 +54,49 @@ def substitute_env_vars(config_str: str) -> str:
     return re.sub(pattern, replacer, config_str)
 
 
-def load_config(config_path: str = DEFAULT_CONFIG_PATH) -> AppConfig:
+def _read_yaml_mapping(config_path: str) -> Dict[str, Any]:
+    """Read YAML file into a mapping with environment substitution."""
+    config_file = Path(config_path)
+
+    if not config_file.exists():
+        raise FileNotFoundError(f"Configuration file not found: {config_path}")
+
+    with open(config_file, 'r', encoding='utf-8') as f:
+        config_content = f.read()
+
+    substituted_content = substitute_env_vars(config_content)
+    config_data = yaml.safe_load(substituted_content)
+
+    if not isinstance(config_data, dict):
+        raise ValueError("Configuration file must contain a YAML mapping")
+
+    return config_data
+
+
+def _merge_dicts(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+    """Recursively merge two dictionaries where override wins."""
+    merged = dict(base)
+    for key, value in override.items():
+        if (
+            key in merged
+            and isinstance(merged[key], dict)
+            and isinstance(value, dict)
+        ):
+            merged[key] = _merge_dicts(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def _load_config_from_path(
+    config_path: str,
+    base_config_path: str | None = None,
+) -> AppConfig:
     """
     Load configuration from YAML file with environment variable substitution.
     
     Args:
-        config_path: Path to configuration file
+        config_path: Concrete path to configuration file
         
     Returns:
         Parsed configuration object
@@ -67,44 +106,108 @@ def load_config(config_path: str = DEFAULT_CONFIG_PATH) -> AppConfig:
         yaml.YAMLError: If config file is invalid YAML
         ValueError: If configuration is invalid
     """
-    config_file = Path(config_path)
-    
-    if not config_file.exists():
-        raise FileNotFoundError(f"Configuration file not found: {config_path}")
-    
     try:
-        # Read and substitute environment variables
-        with open(config_file, 'r', encoding='utf-8') as f:
-            config_content = f.read()
-        
-        substituted_content = substitute_env_vars(config_content)
-        
-        # Parse YAML
-        config_data = yaml.safe_load(substituted_content)
-        
-        if not isinstance(config_data, dict):
-            raise ValueError("Configuration file must contain a YAML mapping")
-        
+        config_data = _read_yaml_mapping(config_path)
+
+        if base_config_path and Path(base_config_path).exists():
+            base_data = _read_yaml_mapping(base_config_path)
+            config_data = _merge_dicts(base_data, config_data)
+
         # Create and validate configuration
         return AppConfig(**config_data)
-        
+
     except yaml.YAMLError as e:
         raise yaml.YAMLError(f"Invalid YAML in configuration file: {e}")
+    except FileNotFoundError:
+        raise
     except Exception as e:
         raise ValueError(f"Error loading configuration: {e}")
 
 
-def save_config(config: AppConfig, config_path: str = DEFAULT_CONFIG_PATH) -> None:
+def get_strategy_config_path(
+    strategy_id: str,
+    strategies_path: str = DEFAULT_STRATEGIES_PATH,
+) -> str:
+    """Resolve config path for a strategy id from strategy catalog."""
+    normalized_id = strategy_id.strip().lower()
+    catalog = load_strategy_catalog(strategies_path)
+
+    for item in catalog:
+        if item["id"] == normalized_id:
+            return item["config_path"]
+
+    allowed = ", ".join(sorted(item["id"] for item in catalog))
+    raise ValueError(f"Unknown strategy id '{strategy_id}'. Allowed: {allowed}")
+
+
+def get_default_strategy_id(strategies_path: str = DEFAULT_STRATEGIES_PATH) -> str:
+    """Get default strategy id from catalog, falling back to built-in defaults."""
+    try:
+        catalog = load_strategy_catalog(strategies_path)
+        if catalog:
+            return catalog[0]["id"]
+    except Exception:
+        pass
+    return DEFAULT_STRATEGY_CATALOG[0]["id"]
+
+
+def load_config(
+    config_path: str | None = None,
+    strategy_id: str | None = None,
+) -> AppConfig:
+    """
+    Load configuration with strategy-aware resolution.
+
+    Resolution order:
+    1) explicit config_path
+    2) explicit strategy_id mapped via strategy catalog
+    3) default strategy from strategy catalog
+    4) legacy fallback to DEFAULT_CONFIG_PATH
+    """
+    if config_path:
+        base_path = DEFAULT_CONFIG_PATH if config_path != DEFAULT_CONFIG_PATH else None
+        return _load_config_from_path(config_path, base_config_path=base_path)
+
+    if strategy_id:
+        strategy_path = get_strategy_config_path(strategy_id)
+        return _load_config_from_path(strategy_path, base_config_path=DEFAULT_CONFIG_PATH)
+
+    try:
+        default_strategy = get_default_strategy_id()
+        strategy_path = get_strategy_config_path(default_strategy)
+        return _load_config_from_path(strategy_path, base_config_path=DEFAULT_CONFIG_PATH)
+    except Exception:
+        return _load_config_from_path(DEFAULT_CONFIG_PATH)
+
+
+def save_config(
+    config: AppConfig,
+    config_path: str | None = None,
+    strategy_id: str | None = None,
+) -> None:
     """
     Save configuration to YAML file.
     
     Args:
         config: Configuration object to save
-        config_path: Path to save configuration file
+        config_path: Optional explicit path to save configuration file
+        strategy_id: Optional strategy id to resolve strategy-specific config path
     """
+    target_path = config_path
+
+    if not target_path:
+        try:
+            strategy_key = strategy_id or config.strategy.type
+            target_path = get_strategy_config_path(strategy_key)
+        except Exception:
+            target_path = DEFAULT_CONFIG_PATH
+
+    path_obj = Path(target_path)
+    path_obj.parent.mkdir(parents=True, exist_ok=True)
+
     config_data = config.to_dict()
-    
-    with open(config_path, 'w', encoding='utf-8') as f:
+
+    with open(path_obj, 'w', encoding='utf-8') as f:
         yaml.dump(config_data, f, default_flow_style=False, indent=2)
 
 

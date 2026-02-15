@@ -837,15 +837,17 @@
                 } catch (e) {
                     console.error('Failed to load strategy catalog', e);
                     availableStrategies = [
-                        { id: 'grid', label: 'Grid', config_path: 'configs/active/config.yaml' },
+                        { id: 'grid', label: 'Grid', config_path: 'configs/active/config-grid.yaml' },
                         { id: 'supertrend', label: 'Supertrend', config_path: 'configs/active/config-supertrend.yaml' }
                     ];
                 }
             }
 
-            async function loadConfig() {
+            async function loadConfig(strategyId = null) {
                 try {
-                    const response = await fetch('/api/config');
+                    const selectedStrategy = strategyId || getSelectedStrategyType();
+                    const query = selectedStrategy ? `?strategy=${encodeURIComponent(selectedStrategy)}` : '';
+                    const response = await fetch(`/api/config${query}`);
                     const config = await response.json();
                     if (!response.ok) {
                         throw new Error(config.error || 'Failed to load configuration');
@@ -869,9 +871,11 @@
                     const editableConfig = buildEditableConfig(loadedConfig);
                     const updatedVisibleConfig = getFormConfig(editableConfig);
                     const config = deepMerge(deepCopy(loadedConfig), updatedVisibleConfig);
-                    config.strategy.type = getSelectedStrategyType();
+                    const selectedStrategy = getSelectedStrategyType();
+                    config.strategy.type = selectedStrategy;
+                    const query = selectedStrategy ? `?strategy=${encodeURIComponent(selectedStrategy)}` : '';
 
-                    const response = await fetch('/api/config', {
+                    const response = await fetch(`/api/config${query}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(config)
@@ -904,7 +908,10 @@
                     // First, save the current config
                     await saveConfig();
 
-                    const response = await fetch('/api/backtest/run', { method: 'POST' });
+                    const selectedStrategy = getSelectedStrategyType();
+                    const query = selectedStrategy ? `?strategy=${encodeURIComponent(selectedStrategy)}` : '';
+
+                    const response = await fetch(`/api/backtest/run${query}`, { method: 'POST' });
                     if (response.status === 202) {
                         const data = await response.json();
                         currentRunId = data.run_id;
@@ -960,12 +967,9 @@
             }
 
             if (strategySelect) {
-                strategySelect.addEventListener('change', function() {
-                    if (loadedConfig?.strategy) {
-                        loadedConfig.strategy.type = strategySelect.value;
-                    }
+                strategySelect.addEventListener('change', async function() {
                     updateStrategyPathHint();
-                    renderConfigForm();
+                    await loadConfig(strategySelect.value);
                 });
             }
             

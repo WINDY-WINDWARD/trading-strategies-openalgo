@@ -41,14 +41,9 @@ Running commands as an agent
 - Always run tests after changing behavior (unit tests + relevant integration
   tests). For a focused change, run the single test(s) touching the modified
   modules first using the nodeid or `-k` expression.
-- Keep `PYTHONPATH` when spawning subprocesses so tests import from local code.
-  Example: `PYTHONPATH=. pytest tests/test_openalgo.py`
-
-Cursor / Copilot rules
-- No `.cursor` rules or `.cursorrules` were found in the repository.
-- No `.github/copilot-instructions.md` was present. If you maintain such
-  rules, add a short summary here and commit the files so agents can follow
-  repository-specific AI instructions.
+- Keep `conda run -n trade` when spawning subprocesses so tests import from local code.
+  Example: `conda run -n trade pytest tests/test_openalgo.py`
+- ALWAYS use the CONDA environment so dependencies are available when running scripts.
 
 Code style guidelines (for automated agents)
 

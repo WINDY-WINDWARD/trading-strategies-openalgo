@@ -29,19 +29,22 @@ If the strategy should appear in the web config editor dropdown, add it to [conf
 strategies:
   - id: grid
     label: Grid
-    config_path: configs/active/config.yaml
+      config_path: configs/active/config-grid.yaml
   - id: supertrend
     label: Supertrend
     config_path: configs/active/config-supertrend.yaml
   - id: mynew
     label: My New Strategy
-    config_path: configs/active/config.yaml
+      config_path: configs/active/config-mynew.yaml
 ```
 
 ### Field meanings
 - `id`: Strategy key (must match registered strategy key)
 - `label`: Display text in dropdown
-- `config_path`: Path hint shown in UI
+- `config_path`: Strategy config path (used by backend/UI load/save/run flow)
+
+Keep shared/base settings in [configs/active/config.yaml](../configs/active/config.yaml).
+Strategy-specific files (for example `config-grid.yaml`, `config-supertrend.yaml`, `config-mynew.yaml`) are merged over the base config at load time.
 
 If you want it available for developers but hidden from users, do **not** add it to `strats.yaml`.
 

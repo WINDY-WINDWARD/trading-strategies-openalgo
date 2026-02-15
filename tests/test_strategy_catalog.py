@@ -23,7 +23,7 @@ strategies:
     strategies = load_strategy_catalog(str(catalog_path))
 
     assert [item["id"] for item in strategies] == ["grid", "supertrend"]
-    assert strategies[0]["config_path"] == "configs/active/config.yaml"
+    assert strategies[0]["config_path"] == "configs/active/config-grid.yaml"
 
 
 def test_load_strategy_catalog_falls_back_when_missing(tmp_path: Path):
@@ -41,7 +41,7 @@ def test_load_strategy_catalog_rejects_duplicate_ids(tmp_path: Path):
 strategies:
   - id: grid
     label: Grid
-    config_path: configs/active/config.yaml
+    config_path: configs/active/config-grid.yaml
   - id: grid
     label: Grid Duplicate
     config_path: configs/active/config-supertrend.yaml

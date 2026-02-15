@@ -72,12 +72,15 @@ def auto_register_strategies():
 #### Step 3: Use It!
 
 ```yaml
-# configs/active/config.yaml
+# configs/active/config-mynew.yaml
 strategy:
   type: mynew  # ← Your new strategy
   my_param1: 20
   my_param2: 3.5
 ```
+
+Keep shared settings (for example `openalgo`, `ui`, `logging`) in `configs/active/config.yaml`.
+Strategy files are loaded and merged over this base config.
 
 **That's it!** Your strategy is now fully integrated with the backtesting system.
 
@@ -90,13 +93,13 @@ To make a strategy user-visible in the configuration editor dropdown, add it to:
 strategies:
     - id: grid
         label: Grid
-        config_path: configs/active/config.yaml
+        config_path: configs/active/config-grid.yaml
     - id: supertrend
         label: Supertrend
         config_path: configs/active/config-supertrend.yaml
     - id: mynew
         label: My New Strategy
-        config_path: configs/active/config.yaml
+        config_path: configs/active/config-mynew.yaml
 ```
 
 If you want a strategy available in code but hidden from end users, keep it out of `strats.yaml`.
@@ -486,7 +489,8 @@ class YourBot(TradingBot):
 - [ ] Implemented `run_backtest(current_price)` method
 - [ ] Implemented all required `TradingBot` methods
 - [ ] Registered strategy in `registry.py`
-- [ ] Added configuration in `configs/active/config.yaml`
+- [ ] Added strategy config in `configs/active/config-<strategy>.yaml`
+- [ ] Kept shared defaults in `configs/active/config.yaml`
 - [ ] Tested with test script
 - [ ] Documented any special requirements
 

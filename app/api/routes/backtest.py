@@ -8,7 +8,7 @@ import logging
 from typing import Dict, Any
 from pathlib import Path
 from datetime import datetime
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, BackgroundTasks
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, BackgroundTasks, Query
 from fastapi.responses import JSONResponse
 from fastapi.responses import StreamingResponse
 import csv
@@ -19,6 +19,7 @@ from ...utils.config_loader import (
     save_config,
     get_default_config,
     load_strategy_catalog,
+    get_default_strategy_id,
 )
 from ...models.config import AppConfig
 from ...core.backtest_engine import BacktestEngine
@@ -52,12 +53,15 @@ async def websocket_endpoint(websocket: WebSocket):
 
 
 @router.post("/api/backtest/run")
-async def run_backtest_endpoint(background_tasks: BackgroundTasks):
+async def run_backtest_endpoint(
+    background_tasks: BackgroundTasks,
+    strategy: str | None = Query(default=None),
+):
     """
     Run a backtest in the background.
     """
     try:
-        app_config = load_config()
+        app_config = load_config(strategy_id=strategy)
         run_id = app_config.run_id
         
         # Add the backtest run to background tasks
@@ -237,10 +241,11 @@ async def get_results(run_id: str):
 
 
 @router.get("/api/config")
-async def get_config():
+async def get_config(strategy: str | None = Query(default=None)):
     """Get the current application configuration."""
     try:
-        config = load_config()
+        resolved_strategy = strategy or get_default_strategy_id()
+        config = load_config(strategy_id=resolved_strategy)
         return JSONResponse(content=config.model_dump(mode='python'))
     except FileNotFoundError:
         # If no config exists, return a default one
@@ -288,10 +293,14 @@ async def export_trades_csv(run_id: str):
     })
 
 @router.post("/api/config")
-async def update_config(config_data: Dict[str, Any]):
+async def update_config(
+    config_data: Dict[str, Any],
+    strategy: str | None = Query(default=None),
+):
     """Update and save the application configuration."""
     try:
-        strategy_type = config_data.get("strategy", {}).get("type")
+        payload_strategy = config_data.get("strategy", {}).get("type")
+        strategy_type = (strategy or payload_strategy or "").strip().lower()
         if not strategy_type:
             return JSONResponse(status_code=400, content={"error": "strategy.type is required"})
 
@@ -314,8 +323,12 @@ async def update_config(config_data: Dict[str, Any]):
                 content={"error": f"Strategy '{strategy_type}' is not registered in backend"},
             )
 
+        if "strategy" not in config_data or not isinstance(config_data.get("strategy"), dict):
+            config_data["strategy"] = {}
+        config_data["strategy"]["type"] = strategy_type
+
         config = AppConfig(**config_data)
-        save_config(config)
+        save_config(config, strategy_id=strategy_type)
         return JSONResponse(content={"message": "Configuration saved successfully."})
     except Exception as e:
         logger.error(f"Failed to save configuration: {e}", exc_info=True)

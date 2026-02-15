@@ -1,30 +1,49 @@
 backtest:
-	candle_execution: true
-	commission_per_trade: 0.0
-	delivery_tax_pct: 0.1
-	fee_bps: 5.0
-	initial_cash: 100000.0
-	intraday_tax_pct: 0.025
-	seed: 42
-	slippage_bps: 2.0
+  candle_execution: true
+  commission_per_trade: 0.0
+  delivery_tax_pct: 0.1
+  fee_bps: 5.0
+  initial_cash: 100000.0
+  intraday_tax_pct: 0.025
+  seed: 42
+  slippage_bps: 2.0
 data:
-	cache_dir: .cache/data
-	end: '2023-12-31'
-	exchange: NSE
-	start: '2023-01-01'
-	symbol: SBI
-	timeframe: 1h
-	use_synthetic: false
+  cache_dir: .cache/data
+  end: '2023-12-31'
+  exchange: NSE
+  start: '2023-01-01'
+  symbol: SBI
+  timeframe: 1h
+  use_synthetic: false
+logging:
+  file: backtest.log
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  level: INFO
+openalgo:
+  api_key: ''
+  base_url: http://127.0.0.1:8800
+  cache_max_age_hours: 24
+  force_cache_use: false
+  retry_attempts: 3
+  timeout: 30
 strategy:
-	atr_multiplier: 3.0
-	atr_period: 10
-	auto_reset: true
-	buffer_days: 90
-	buffer_enabled: true
-	buffer_mode: skip_initial
-	initial_position_strategy: wait_for_buy
-	max_order_amount: 100000.0
-	order_amount: 10000.0
-	stop_loss_pct: 5.0
-	take_profit_pct: 10.0
-	type: supertrend
+  atr_multiplier: 3.0
+  atr_period: 10
+  auto_reset: true
+  buffer_days: 90
+  buffer_enabled: true
+  buffer_mode: skip_initial
+  grid_levels: 10
+  grid_spacing_pct: 1.0
+  grid_type: arithmetic
+  initial_position_strategy: wait_for_buy
+  max_order_amount: 100000.0
+  order_amount: 10000.0
+  stop_loss_pct: 5.0
+  take_profit_pct: 10.0
+  type: supertrend
+ui:
+  debug: false
+  host: 0.0.0.0
+  port: 4850
+  title: Backtester

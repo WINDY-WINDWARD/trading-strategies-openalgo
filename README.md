@@ -426,8 +426,17 @@ pip install -r requirements.txt
 
 ```bash
 cp configs/templates/example-config.yaml configs/active/config.yaml
-# Edit with your parameters
+# Shared settings live in config.yaml
 ```
+
+Per-strategy overrides live in:
+
+```bash
+configs/active/config-grid.yaml
+configs/active/config-supertrend.yaml
+```
+
+At runtime, strategy config is loaded and merged over `configs/active/config.yaml` (base), so shared keys like `openalgo`, `ui`, and `logging` can stay in `config.yaml`.
 
 The web configuration editor strategy dropdown is driven by:
 
@@ -439,8 +448,8 @@ Default user-visible strategies are `grid` and `supertrend`.
 
 **Key configurations:**
 - Set `OPENALGO_API_KEY` environment variable or use synthetic data
-- Configure strategy parameters in `strategy` section
-- Adjust risk parameters in `backtest` section
+- Keep shared defaults in `configs/active/config.yaml`
+- Keep strategy-specific settings in each strategy YAML file
 - Control strategy visibility in UI using `configs/active/strats.yaml`
 
 ### 2.5. Quick Verification
@@ -467,6 +476,9 @@ python -m scripts.backtest --config configs/active/config.yaml
 # Web interface
 make web
 # Visit http://localhost:42069
+
+# Optional: force web startup strategy
+WEB_STRATEGY=supertrend make web
 ```
 
 ### 4. Analyze Results
@@ -554,7 +566,9 @@ trading-strategies-openalgo/
 │   └── WEB_DASHBOARD_README.md
 ├── configs/
 │   ├── active/
-│   │   ├── config.yaml              # Main configuration
+│   │   ├── config.yaml              # Shared/base configuration
+│   │   ├── config-grid.yaml         # Grid strategy overrides
+│   │   ├── config-supertrend.yaml   # Supertrend strategy overrides
 │   │   ├── strats.yaml              # UI strategy catalog (dropdown + config path)
 │   │   ├── grid_config.json         # Grid strategy config
 │   │   └── supertrend_config.json   # Supertrend strategy config
@@ -659,7 +673,7 @@ python -m scripts.backtest --config configs/active/config.yaml
 ## Debugging
 
 For issues and questions:
-1. Check configuration in `configs/active/config.yaml` set logging to DEBUG
+1. Check shared config in `configs/active/config.yaml` and strategy overrides in `configs/active/config-grid.yaml` / `configs/active/config-supertrend.yaml`
 2. Review logs in `backtest.log`
 3. Test with synthetic data first
 4. Verify OpenAlgo connection

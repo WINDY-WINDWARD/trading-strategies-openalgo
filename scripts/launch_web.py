@@ -3,6 +3,7 @@
 Cross-platform script to launch the web UI using settings from configs/active/config.yaml.
 """
 
+import os
 import sys
 from pathlib import Path
 import uvicorn
@@ -14,8 +15,10 @@ from app.utils.logging_config import setup_logging
 
 if __name__ == "__main__":
     try:
+        web_strategy = os.getenv("WEB_STRATEGY")
+
         # Load configuration to get UI host and port
-        config = load_config()
+        config = load_config(strategy_id=web_strategy)
         setup_logging(level=config.logging.level)
 
         print(f"🚀 Starting web dashboard at http://{config.ui.host}:{config.ui.port}")
@@ -27,6 +30,6 @@ if __name__ == "__main__":
             log_level=config.logging.level.lower()
         )
     except FileNotFoundError:
-        print("❌ Error: configs/active/config.yaml not found. Please ensure the configuration file exists.")
+        print("❌ Error: strategy configuration file not found. Please verify configs/active/strats.yaml and strategy YAML files.")
     except Exception as e:
         print(f"❌ Failed to start web server: {e}")
