@@ -125,3 +125,14 @@ def test_ticker_timeframes_updated_on_upsert(repository: WarehouseRepository) ->
     assert int(row["last_updated_epoch"]) == 1700086400
     assert int(row["current_range_start_epoch"]) == 1700000000
     assert int(row["current_range_end_epoch"]) == 1700086400
+
+
+def test_job_persistence_roundtrip(repository: WarehouseRepository) -> None:
+    repository.create_job("job-1", "add", "queued")
+    repository.update_job("job-1", "completed", {"inserted": 5})
+
+    job = repository.get_job("job-1")
+    assert job is not None
+    assert job["job_id"] == "job-1"
+    assert job["status"] == "completed"
+    assert job["inserted"] == 5

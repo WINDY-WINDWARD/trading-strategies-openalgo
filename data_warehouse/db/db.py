@@ -46,6 +46,21 @@ ON ohlcv (ticker_id, timeframe, epoch);
 
 CREATE INDEX IF NOT EXISTS idx_ticker_timeframes_ticker_timeframe
 ON ticker_timeframes (ticker_id, timeframe);
+
+CREATE TABLE IF NOT EXISTS jobs (
+    job_id TEXT PRIMARY KEY,
+    job_type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    data TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_jobs_status
+ON jobs (status);
+
+CREATE INDEX IF NOT EXISTS idx_jobs_type
+ON jobs (job_type);
 """
 
 

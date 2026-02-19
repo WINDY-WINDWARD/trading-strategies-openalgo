@@ -173,6 +173,32 @@
             min-width: 160px;
         }
 
+        .ticker-select {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            margin-top: 16px;
+        }
+
+        .ticker-select a {
+            padding: 8px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--line);
+            text-decoration: none;
+            color: var(--accent-2);
+            font-weight: 600;
+            background: #fff;
+        }
+
+        .job-status.failed {
+            color: #e63946;
+        }
+
+        .job-status.completed {
+            color: #1b7f6b;
+        }
+
         .jobs-shell {
             display: grid;
             gap: 12px;
@@ -205,6 +231,35 @@
             font-size: 0.9rem;
         }
 
+        .job-meta {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 6px 12px;
+            font-size: 0.82rem;
+            color: var(--muted);
+        }
+
+        .pagination {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 12px;
+        }
+
+        .pagination button {
+            padding: 6px 10px;
+            border-radius: 10px;
+            border: 1px solid var(--line);
+            background: #fff;
+            color: var(--accent-2);
+            cursor: pointer;
+        }
+
+        #range-inputs {
+            display: grid;
+            gap: 8px;
+        }
+
         .job-type {
             text-transform: uppercase;
             font-size: 0.75rem;
@@ -231,7 +286,7 @@
         }
     </style>
 </head>
-<body>
+<body hx-ext="json-enc">
     <main>
         <header>
             <div>
@@ -247,6 +302,20 @@
                 <div class="action-row">
                     <a class="action" href="/data-warehouse/tickers/RELIANCE?timeframe=1d">View RELIANCE</a>
                 </div>
+                <div class="ticker-select">
+                    <label for="ticker-dropdown">Ticker view</label>
+                    <select
+                        id="ticker-dropdown"
+                        name="ticker"
+                        onchange="document.getElementById('ticker-link').href = '/data-warehouse/tickers/' + this.value + '?timeframe=1d'"
+                    >
+                        <option value="">Select ticker</option>
+                        {% for ticker in tickers %}
+                        <option value="{{ ticker }}">{{ ticker }}</option>
+                        {% endfor %}
+                    </select>
+                    <a id="ticker-link" href="#">Open</a>
+                </div>
             </div>
             <div class="card">
                 <h2>Quality</h2>
@@ -260,7 +329,7 @@
         <section class="actions-grid">
             <div class="card">
                 <h2>Add</h2>
-                <form hx-post="/api/data-warehouse/stocks/add" hx-swap="none" hx-encoding="json">
+                <form hx-post="/api/data-warehouse/stocks/add" hx-swap="none" hx-encoding="json" onsubmit="normalizeAddRange(event)">
                     <div>
                         <label for="add-ticker">Ticker</label>
                         <input id="add-ticker" name="ticker" placeholder="RELIANCE" required />
@@ -278,12 +347,25 @@
                             <option value="1M">1M</option>
                         </select>
                     </div>
+                    <div>
+                        <label for="add-range">Range</label>
+                        <select id="add-range" name="range_mode" onchange="toggleRangeInputs()">
+                            <option value="default">Last 1y (default)</option>
+                            <option value="custom">Custom date range</option>
+                        </select>
+                    </div>
+                    <div id="range-inputs" style="display:none;">
+                        <label for="add-start">Start date</label>
+                        <input id="add-start" name="start_date" type="date" />
+                        <label for="add-end">End date</label>
+                        <input id="add-end" name="end_date" type="date" />
+                    </div>
                     <button type="submit">Queue Add</button>
                 </form>
             </div>
             <div class="card">
                 <h2>Bulk CSV</h2>
-                <form action="/api/data-warehouse/stocks/add-bulk-csv" method="post" enctype="multipart/form-data">
+                <form action="/api/data-warehouse/stocks/add-bulk-csv" method="post" enctype="multipart/form-data" hx-encoding="multipart/form-data">
                     <div>
                         <label for="bulk-csv">CSV file</label>
                         <input id="bulk-csv" type="file" name="file" accept=".csv" required />
@@ -372,17 +454,47 @@
                     <option value="delete">Delete</option>
                     <option value="bulk_add">Bulk Add</option>
                 </select>
+                <label for="jobs-limit">Page size</label>
+                <select
+                    id="jobs-limit"
+                    name="limit"
+                    hx-get="/data-warehouse/fragments/jobs"
+                    hx-trigger="change, load"
+                    hx-target="#jobs-panel"
+                    hx-swap="innerHTML"
+                >
+                    <option value="10" selected>10</option>
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                </select>
+                <input type="hidden" id="jobs-page" name="page" value="1" />
             </div>
             <div
                 id="jobs-panel"
                 hx-get="/data-warehouse/fragments/jobs"
                 hx-trigger="load, every 6s"
-                hx-include="#filter-status, #filter-type"
+                hx-include="#filter-status, #filter-type, #jobs-limit, #jobs-page"
                 hx-swap="innerHTML"
             >
                 Loading job queue...
             </div>
         </section>
     </main>
+    <script>
+        function toggleRangeInputs() {
+            const mode = document.getElementById('add-range').value;
+            document.getElementById('range-inputs').style.display = mode === 'custom' ? 'grid' : 'none';
+        }
+
+        function normalizeAddRange(event) {
+            const mode = document.getElementById('add-range').value;
+            if (mode !== 'custom') {
+                const startInput = document.getElementById('add-start');
+                const endInput = document.getElementById('add-end');
+                startInput.value = '';
+                endInput.value = '';
+            }
+        }
+    </script>
 </body>
 </html>

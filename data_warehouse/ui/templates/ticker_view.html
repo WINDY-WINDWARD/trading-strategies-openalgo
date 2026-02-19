@@ -100,6 +100,20 @@
             margin-bottom: 16px;
         }
 
+        .alert {
+            padding: 12px 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(230, 57, 70, 0.3);
+            background: rgba(230, 57, 70, 0.08);
+            color: #a11c2a;
+            font-size: 0.92rem;
+        }
+
+        .alert a {
+            color: inherit;
+            font-weight: 600;
+        }
+
         .toolbar input,
         .toolbar select {
             padding: 8px 10px;
@@ -125,6 +139,38 @@
             color: #fff;
             font-weight: 600;
             cursor: pointer;
+        }
+
+        .timeframe-picker {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin: 16px 0 20px;
+        }
+
+        .range-form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .range-form button {
+            padding: 8px 12px;
+            border-radius: 10px;
+            border: none;
+            background: var(--accent-2);
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .timeframe-picker select {
+            padding: 8px 10px;
+            border-radius: 10px;
+            border: 1px solid var(--line);
+            font-size: 0.9rem;
         }
 
         .legend strong {
@@ -191,6 +237,34 @@
             <div class="pill">IST-aligned</div>
         </header>
 
+        {% if available_timeframes and timeframe not in available_timeframes %}
+        <div class="alert">
+            No data found for {{ timeframe }}. Available timeframes:
+            {% for tf in available_timeframes %}
+            <a href="/data-warehouse/tickers/{{ ticker }}?timeframe={{ tf }}">{{ tf }}</a>{% if not loop.last %}, {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="timeframe-picker">
+            <label for="timeframe-select">Timeframe</label>
+            <select
+                id="timeframe-select"
+                onchange="window.location.href = '/data-warehouse/tickers/{{ ticker }}?timeframe=' + this.value"
+            >
+                {% for tf in available_timeframes %}
+                <option value="{{ tf }}" {% if tf == timeframe %}selected{% endif %}>{{ tf }}</option>
+                {% endfor %}
+            </select>
+            <form class="range-form" onsubmit="applyRange(event)">
+                <label for="range-start">Start date</label>
+                <input id="range-start" type="date" />
+                <label for="range-end">End date</label>
+                <input id="range-end" type="date" />
+                <button type="submit">Apply</button>
+            </form>
+        </div>
+
         <section class="layout">
             <div class="card">
                 <div class="legend">
@@ -250,11 +324,13 @@
             <div class="toolbar">
                 <form method="get" action="/data-warehouse/tickers/{{ ticker }}" style="display:flex; gap:12px; flex-wrap:wrap;">
                     <input type="hidden" name="timeframe" value="{{ timeframe }}" />
+                    <input type="hidden" name="start_epoch" value="{{ range.start_epoch if range else '' }}" />
+                    <input type="hidden" name="end_epoch" value="{{ range.end_epoch if range else '' }}" />
                     <input type="number" name="page" min="1" value="{{ page }}" />
                     <input type="number" name="limit" min="10" max="500" value="{{ limit }}" />
                     <button type="submit">Refresh</button>
                 </form>
-                <a href="/api/data-warehouse/stocks/export?ticker={{ ticker }}&timeframe={{ timeframe }}">Export CSV</a>
+                <a href="/api/data-warehouse/stocks/export?ticker={{ ticker }}&timeframe={{ timeframe }}&start_epoch={{ range.start_epoch if range else '' }}&end_epoch={{ range.end_epoch if range else '' }}">Export CSV</a>
             </div>
             <table>
                 <thead>
@@ -322,6 +398,21 @@
             window.addEventListener("resize", () => {
                 chart.applyOptions({ width: chartContainer.clientWidth });
             });
+        }
+
+        function applyRange(event) {
+            event.preventDefault();
+            const start = document.getElementById("range-start").value;
+            const end = document.getElementById("range-end").value;
+            const params = new URLSearchParams();
+            params.set("timeframe", "{{ timeframe }}");
+            if (start) {
+                params.set("start_epoch", start);
+            }
+            if (end) {
+                params.set("end_epoch", end);
+            }
+            window.location.href = `/data-warehouse/tickers/{{ ticker }}?${params.toString()}`;
         }
     </script>
 </body>

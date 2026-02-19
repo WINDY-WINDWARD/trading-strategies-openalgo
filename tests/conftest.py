@@ -1,7 +1,12 @@
-import sys
+import os
 from pathlib import Path
 
+import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+
+@pytest.fixture(autouse=True, scope="session")
+def _warehouse_test_db(tmp_path_factory: pytest.TempPathFactory) -> None:
+    tmp_dir = tmp_path_factory.mktemp("warehouse_db")
+    db_path = tmp_dir / "tickerData.db"
+    os.environ["DW_DB_PATH"] = str(db_path)
+    os.environ["DW_TESTING"] = "1"

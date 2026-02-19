@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, UploadFile
+from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 import csv
 import io
@@ -59,14 +60,15 @@ def get_stock_data(
     offset: int = 0,
     service: WarehouseService = Depends(get_service),
 ):
-    return JSONResponse(
-        status_code=200,
-        content=service.get_stock_data_page(
+    try:
+        payload = service.get_stock_data_page(
             request=request,
             limit=limit,
             offset=offset,
-        ),
-    )
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return JSONResponse(status_code=200, content=payload)
 
 
 @router.get("/stocks/export")
@@ -74,7 +76,10 @@ def export_stock_data(
     request: GetStockRequest = Depends(),
     service: WarehouseService = Depends(get_service),
 ):
-    payload = service.get_stock_data_page(request=request, limit=10000, offset=0)
+    try:
+        payload = service.get_stock_data_page(request=request, limit=10000, offset=0)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(
@@ -137,7 +142,12 @@ def get_job_status(job_id: str, service: WarehouseService = Depends(get_service)
 def list_jobs(
     status: str | None = None,
     job_type: str | None = None,
+    limit: int = 20,
+    offset: int = 0,
     service: WarehouseService = Depends(get_service),
 ):
-    jobs = service.list_jobs(status=status, job_type=job_type)
-    return JSONResponse(status_code=200, content={"jobs": jobs})
+    jobs = service.list_jobs(
+        status=status, job_type=job_type, limit=limit, offset=offset
+    )
+    total = service.count_jobs(status=status, job_type=job_type)
+    return JSONResponse(status_code=200, content={"jobs": jobs, "total": total})

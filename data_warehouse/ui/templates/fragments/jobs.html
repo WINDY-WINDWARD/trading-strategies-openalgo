@@ -1,7 +1,7 @@
 <div class="jobs-shell">
     <div class="jobs-header">
-        <strong>Active Jobs</strong>
-        <span>{{ jobs | length }} running</span>
+        <strong>Jobs</strong>
+        <span>{{ active | length }} active · {{ total }} total</span>
     </div>
     {% if jobs %}
     <ul class="jobs-list">
@@ -9,11 +9,45 @@
         <li>
             <span class="job-type">{{ job.job_type }}</span>
             <a class="job-id" href="/api/data-warehouse/jobs/{{ job.job_id }}">{{ job.job_id }}</a>
-            <span class="job-status">{{ job.status }}</span>
+            <span class="job-status {{ job.status }}">{{ job.status }}</span>
+            <div class="job-meta">
+                <span>Created: {{ job.created_at | datetimeformat }}</span>
+                <span>Updated: {{ job.updated_at | datetimeformat }}</span>
+                {% if job.inserted is defined %}
+                <span>Inserted: {{ job.inserted }}</span>
+                {% endif %}
+                {% if job.deleted is defined %}
+                <span>Deleted: {{ job.deleted }}</span>
+                {% endif %}
+                {% if job.error %}
+                <span>Error: {{ job.error }}</span>
+                {% endif %}
+            </div>
         </li>
         {% endfor %}
     </ul>
+    <div class="pagination">
+        <button
+            hx-get="/data-warehouse/fragments/jobs"
+            hx-include="#filter-status, #filter-type, #jobs-page, #jobs-limit"
+            hx-target="#jobs-panel"
+            hx-swap="innerHTML"
+            onclick="document.getElementById('jobs-page').value = Math.max(1, parseInt(document.getElementById('jobs-page').value) - 1);"
+        >
+            Prev
+        </button>
+        <span>Page {{ page }} of {{ total_pages }}</span>
+        <button
+            hx-get="/data-warehouse/fragments/jobs"
+            hx-include="#filter-status, #filter-type, #jobs-page, #jobs-limit"
+            hx-target="#jobs-panel"
+            hx-swap="innerHTML"
+            onclick="document.getElementById('jobs-page').value = Math.min({{ total_pages }}, parseInt(document.getElementById('jobs-page').value) + 1);"
+        >
+            Next
+        </button>
+    </div>
     {% else %}
-    <div class="jobs-empty">No active jobs</div>
+    <div class="jobs-empty">No jobs found</div>
     {% endif %}
 </div>

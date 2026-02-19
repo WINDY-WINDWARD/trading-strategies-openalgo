@@ -3,7 +3,7 @@ logging:
   format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
   level: INFO
 openalgo:
-  api_key: ''
+  api_key: '89343c2a530ee92701713bfec3b8e3de0bc39a8cdfeb14b86cf36f5fd0706f7f'
   base_url: http://127.0.0.1:8800
   cache_max_age_hours: 24
   force_cache_use: false

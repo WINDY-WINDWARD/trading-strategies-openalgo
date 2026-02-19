@@ -8,6 +8,8 @@ from typing import Callable
 import json
 
 from ..core.gap_detection import TIMEFRAME_TO_SECONDS, detect_missing_ranges
+from typing import Protocol
+
 from ..core.openalgo_client import OpenAlgoClient
 from ..db.repository import WarehouseRepository
 from ..schemas.ohlcv_data import OHLCVCandle
@@ -21,56 +23,68 @@ from ..schemas.requests import (
 )
 
 
-
 class JobStore:
-    """In-memory store for tracking asynchronous job state and lifecycle.
+    """Persistent store for tracking asynchronous job state and lifecycle."""
 
-    This class keeps job metadata (IDs, types, status, timestamps, etc.)
-    in process-local memory and provides basic operations to create,
-    update, retrieve, and list jobs. It is intended for lightweight
-    job tracking and monitoring, and does not provide persistent storage.
-    """
-    def __init__(self):
-        self._jobs: dict[str, dict] = {}
+    def __init__(self, repository: WarehouseRepository):
+        self.repository = repository
 
     def create(self, job_type: str) -> dict:
         job_id = str(uuid.uuid4())
-        now = int(time.time())
-        payload = {
-            "job_id": job_id,
-            "job_type": job_type,
-            "status": "queued",
-            "created_at": now,
-            "updated_at": now,
-        }
-        self._jobs[job_id] = payload
-        return payload
+        try:
+            self.repository.create_job(job_id, job_type, "queued")
+            stored = self.repository.get_job(job_id)
+            if stored:
+                return stored
+        except Exception:
+            pass
+        return {"job_id": job_id, "job_type": job_type, "status": "queued"}
 
     def update(self, job_id: str, **kwargs) -> dict:
-        job = self._jobs[job_id]
-        job.update(kwargs)
-        job["updated_at"] = int(time.time())
-        return job
+        status = kwargs.pop("status", None)
+        try:
+            payload = self.repository.get_job(job_id) or {}
+        except Exception:
+            payload = {}
+        payload.update(kwargs)
+        if status is None:
+            status = payload.get("status", "queued")
+        try:
+            self.repository.update_job(job_id, status, payload)
+            stored = self.repository.get_job(job_id)
+            if stored:
+                return stored
+        except Exception:
+            pass
+        payload["status"] = status
+        return payload
 
     def get(self, job_id: str) -> dict | None:
-        return self._jobs.get(job_id)
+        try:
+            return self.repository.get_job(job_id)
+        except Exception:
+            return None
 
     def list(
-        self, status: str | None = None, job_type: str | None = None
+        self,
+        status: str | None = None,
+        job_type: str | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
     ) -> list[dict]:
-        jobs = list(self._jobs.values())
-        if status:
-            jobs = [job for job in jobs if job.get("status") == status]
-        if job_type:
-            jobs = [job for job in jobs if job.get("job_type") == job_type]
-        return sorted(jobs, key=lambda item: item.get("created_at", 0), reverse=True)
+        try:
+            return self.repository.list_jobs(
+                status=status, job_type=job_type, limit=limit, offset=offset
+            )
+        except Exception:
+            return []
 
 
 class WarehouseService:
     def __init__(
         self,
         repository: WarehouseRepository,
-        provider: OpenAlgoClient,
+        provider: OpenAlgoProvider,
         job_store: JobStore,
         clock: Callable[[], int] | None = None,
     ):
@@ -99,7 +113,22 @@ class WarehouseService:
     def process_add(self, job_id: str, request: AddStockRequest) -> None:
         try:
             self.job_store.update(job_id, status="running")
-            selected_range = request.range or self.default_range()
+            self.repository.ensure_ticker(request.ticker)
+            selected_range = request.range
+            if request.start_date and request.end_date:
+                start_epoch = int(
+                    datetime.combine(
+                        request.start_date, datetime.min.time()
+                    ).timestamp()
+                )
+                end_epoch = int(
+                    datetime.combine(request.end_date, datetime.max.time()).timestamp()
+                )
+                selected_range = EpochRange(
+                    start_epoch=start_epoch, end_epoch=end_epoch
+                )
+            if selected_range is None:
+                selected_range = self.default_range()
             interval = TIMEFRAME_TO_SECONDS[request.timeframe]
             existing_epochs = self.repository.get_existing_epochs(
                 ticker=request.ticker,
@@ -128,8 +157,14 @@ class WarehouseService:
                         ticker=request.ticker,
                         timeframe=request.timeframe,
                         candles=candles,
-                        use_transaction=False,
                     )
+                if inserted == 0:
+                    self.job_store.update(
+                        job_id,
+                        status="failed",
+                        error="no candles returned for requested gaps",
+                    )
+                    return
                 self.job_store.update(
                     job_id,
                     status="completed",
@@ -150,6 +185,7 @@ class WarehouseService:
     def process_update(self, job_id: str, request: UpdateStockRequest) -> None:
         try:
             self.job_store.update(job_id, status="running")
+            self.repository.ensure_ticker(request.ticker)
             last_epoch = self.repository.get_last_epoch(
                 request.ticker, request.timeframe
             )
@@ -173,7 +209,6 @@ class WarehouseService:
                 ticker=request.ticker,
                 timeframe=request.timeframe,
                 candles=candles,
-                use_transaction=False,
             )
             self.job_store.update(job_id, status="completed", inserted=inserted)
         except Exception as exc:
@@ -286,6 +321,8 @@ class WarehouseService:
         limit: int,
         offset: int,
     ) -> dict:
+        if not self.repository.ticker_exists(request.ticker):
+            raise ValueError("ticker not found")
         selected_range = request.range or self.default_range()
         candles = self.repository.get_ohlcv_page(
             ticker=request.ticker,
@@ -341,6 +378,34 @@ class WarehouseService:
         return self.job_store.get(job_id)
 
     def list_jobs(
-        self, status: str | None = None, job_type: str | None = None
+        self,
+        status: str | None = None,
+        job_type: str | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
     ) -> list[dict]:
-        return self.job_store.list(status, job_type)
+        return self.job_store.list(
+            status=status,
+            job_type=job_type,
+            limit=limit,
+            offset=offset,
+        )
+
+    def count_jobs(self, status: str | None = None, job_type: str | None = None) -> int:
+        return self.repository.count_jobs(status, job_type)
+
+    def list_tickers(self) -> list[str]:
+        return self.repository.list_tickers()
+
+    def list_timeframes_for_ticker(self, ticker: str) -> list[str]:
+        return self.repository.list_timeframes_for_ticker(ticker)
+
+
+class OpenAlgoProvider(Protocol):
+    def fetch_ohlcv(
+        self,
+        ticker: str,
+        timeframe: str,
+        start_epoch: int,
+        end_epoch: int,
+    ) -> list[OHLCVCandle]: ...
