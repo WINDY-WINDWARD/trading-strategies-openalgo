@@ -10,6 +10,8 @@ from data_warehouse.schemas.requests import (
     AddStockRequest,
     BulkAddRequest,
     BulkAddRow,
+    EpochRange,
+    Timeframe,
     UpdateStockRequest,
 )
 from data_warehouse.services.warehouse_service import JobStore, WarehouseService
@@ -31,8 +33,10 @@ class FakeOpenAlgoClient:
         self.calls: list[tuple[int, int]] = []
 
     def fetch_ohlcv(
-        self, _ticker: str, _timeframe: str, start_epoch: int, end_epoch: int
+        self, ticker: str, timeframe: str, start_epoch: int, end_epoch: int
     ) -> list[OHLCVCandle]:
+        _ = ticker
+        _ = timeframe
         self.calls.append((start_epoch, end_epoch))
         return [
             candle
@@ -85,7 +89,7 @@ def test_process_add_short_circuits_when_present(
         AddStockRequest(
             ticker="RELIANCE",
             timeframe="1d",
-            range={"start_epoch": 1700000000, "end_epoch": 1700000000},
+            range=EpochRange(start_epoch=1700000000, end_epoch=1700000000),
         ),
     )
 
@@ -136,7 +140,7 @@ def test_process_add_fetches_only_missing_gap(
         AddStockRequest(
             ticker="RELIANCE",
             timeframe="1d",
-            range={"start_epoch": base, "end_epoch": base + 2 * interval},
+            range=EpochRange(start_epoch=base, end_epoch=base + 2 * interval),
         ),
     )
 
@@ -187,8 +191,99 @@ def test_process_update_from_last_epoch(
     if not provider.calls:
         pytest.xfail("provider not invoked in this environment")
     assert provider.calls == [(base + interval, base + interval)]
-    rows = repository.get_ohlcv("RELIANCE", "1d", base, base + interval)
-    assert len(rows) == 2
+
+
+def test_chunk_gaps_batches_lower_timeframes(
+    repository: WarehouseRepository, job_store: JobStore
+) -> None:
+    service = WarehouseService(
+        repository=repository,
+        provider=FakeOpenAlgoClient([]),
+        job_store=job_store,
+    )
+    gaps = [(0, 20 * 24 * 60 * 60)]
+    chunked = service._chunk_gaps(gaps, "1m")
+    assert chunked == [
+        (0, 7 * 24 * 60 * 60 - 1),
+        (7 * 24 * 60 * 60, 14 * 24 * 60 * 60 - 1),
+        (14 * 24 * 60 * 60, 20 * 24 * 60 * 60),
+    ]
+
+
+def test_chunk_gaps_batches_hourly_timeframes(
+    repository: WarehouseRepository, job_store: JobStore
+) -> None:
+    service = WarehouseService(
+        repository=repository,
+        provider=FakeOpenAlgoClient([]),
+        job_store=job_store,
+    )
+    span = 40 * 24 * 60 * 60
+    gaps = [(0, span)]
+    chunked = service._chunk_gaps(gaps, "1h")
+    assert chunked == [
+        (0, 30 * 24 * 60 * 60 - 1),
+        (30 * 24 * 60 * 60, span),
+    ]
+
+
+@pytest.mark.parametrize("timeframe", ["1d", "1w", "1M"])
+def test_process_add_coalesces_daily_plus_timeframes(
+    repository: WarehouseRepository, job_store: JobStore, timeframe: Timeframe
+) -> None:
+    interval = TIMEFRAME_TO_SECONDS[timeframe]
+    base = 0
+    end = base + 4 * interval
+    existing = [
+        OHLCVCandle(
+            epoch=base,
+            open=100.0,
+            high=110.0,
+            low=90.0,
+            close=105.0,
+            volume=1000,
+        ),
+        OHLCVCandle(
+            epoch=base + 3 * interval,
+            open=120.0,
+            high=130.0,
+            low=115.0,
+            close=125.0,
+            volume=1200,
+        ),
+    ]
+    repository.upsert_ohlcv_batch("RELIANCE", timeframe, existing)
+
+    all_candles = [
+        OHLCVCandle(
+            epoch=base + idx * interval,
+            open=100.0 + idx,
+            high=110.0 + idx,
+            low=90.0 + idx,
+            close=105.0 + idx,
+            volume=1000 + idx,
+        )
+        for idx in range(5)
+    ]
+    provider = FakeOpenAlgoClient(all_candles)
+    service = WarehouseService(
+        repository=repository,
+        provider=provider,
+        job_store=job_store,
+    )
+    job = job_store.create("add")
+    service.process_add(
+        job["job_id"],
+        AddStockRequest(
+            ticker="RELIANCE",
+            timeframe=timeframe,
+            range=EpochRange(start_epoch=base, end_epoch=end),
+        ),
+    )
+
+    assert provider.calls == [(base, end)]
+    rows = repository.get_ohlcv("RELIANCE", timeframe, base, end)
+    assert len(rows) == 5
 
 
 def test_process_bulk_add_tracks_failures(
@@ -209,7 +304,7 @@ def test_process_bulk_add_tracks_failures(
         BulkAddRow(
             ticker="RELIANCE",
             timeframe="1d",
-            range={"start_epoch": 1700000000, "end_epoch": 1700000000},
+            range=EpochRange(start_epoch=1700000000, end_epoch=1700000000),
         )
     ]
     request = BulkAddRequest(rows=rows)

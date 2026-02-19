@@ -278,6 +278,59 @@
             font-weight: 600;
         }
 
+        .confirm-modal {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(22, 22, 22, 0.45);
+            padding: 24px;
+            z-index: 1200;
+        }
+
+        .confirm-modal.visible {
+            display: flex;
+        }
+
+        .confirm-modal-card {
+            width: min(460px, 100%);
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+            padding: 20px;
+            display: grid;
+            gap: 12px;
+        }
+
+        .confirm-modal-title {
+            margin: 0;
+            font-size: 1.1rem;
+            color: var(--ink);
+        }
+
+        .confirm-modal-message {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.4;
+        }
+
+        .confirm-modal-actions {
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .confirm-modal-close {
+            padding: 8px 14px;
+            border-radius: 10px;
+            border: 1px solid var(--line);
+            background: #fff;
+            color: var(--accent-2);
+            cursor: pointer;
+            font-weight: 600;
+        }
+
         @media (max-width: 720px) {
             header {
                 flex-direction: column;
@@ -297,11 +350,6 @@
         </header>
         <section class="grid">
             <div class="card">
-                <h2>Ingest</h2>
-                <p>Add or update tickers with gap detection and metadata tracking.</p>
-                <div class="action-row">
-                    <a class="action" href="/data-warehouse/tickers/RELIANCE?timeframe=1d">View RELIANCE</a>
-                </div>
                 <div class="ticker-select">
                     <label for="ticker-dropdown">Ticker view</label>
                     <select
@@ -356,16 +404,23 @@
                     </div>
                     <div id="range-inputs" style="display:none;">
                         <label for="add-start">Start date</label>
-                        <input id="add-start" name="start_date" type="date" />
+                        <input id="add-start" name="start_date" type="date" disabled />
                         <label for="add-end">End date</label>
-                        <input id="add-end" name="end_date" type="date" />
+                        <input id="add-end" name="end_date" type="date" disabled />
                     </div>
                     <button type="submit">Queue Add</button>
                 </form>
             </div>
             <div class="card">
                 <h2>Bulk CSV</h2>
-                <form action="/api/data-warehouse/stocks/add-bulk-csv" method="post" enctype="multipart/form-data" hx-encoding="multipart/form-data">
+                <form
+                    action="/api/data-warehouse/stocks/add-bulk-csv"
+                    method="post"
+                    enctype="multipart/form-data"
+                    hx-post="/api/data-warehouse/stocks/add-bulk-csv"
+                    hx-swap="none"
+                    hx-encoding="multipart/form-data"
+                >
                     <div>
                         <label for="bulk-csv">CSV file</label>
                         <input id="bulk-csv" type="file" name="file" accept=".csv" required />
@@ -379,7 +434,12 @@
                 <form hx-post="/api/data-warehouse/stocks/update" hx-swap="none" hx-encoding="json">
                     <div>
                         <label for="update-ticker">Ticker</label>
-                        <input id="update-ticker" name="ticker" placeholder="RELIANCE" required />
+                        <select id="update-ticker" name="ticker" required>
+                            <option value="">Select ticker</option>
+                            {% for ticker in tickers %}
+                            <option value="{{ ticker }}">{{ ticker }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
                     <div>
                         <label for="update-timeframe">Timeframe</label>
@@ -402,7 +462,12 @@
                 <form hx-post="/api/data-warehouse/stocks/delete" hx-swap="none" hx-encoding="json">
                     <div>
                         <label for="delete-ticker">Ticker</label>
-                        <input id="delete-ticker" name="ticker" placeholder="RELIANCE" required />
+                        <select id="delete-ticker" name="ticker" required>
+                            <option value="">Select ticker</option>
+                            {% for ticker in tickers %}
+                            <option value="{{ ticker }}">{{ ticker }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
                     <div>
                         <label for="delete-timeframe">Timeframe (optional)</label>
@@ -480,10 +545,94 @@
             </div>
         </section>
     </main>
+    <div id="confirm-modal" class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title" aria-describedby="confirm-modal-message">
+        <div class="confirm-modal-card">
+            <h3 id="confirm-modal-title" class="confirm-modal-title">Action received</h3>
+            <p id="confirm-modal-message" class="confirm-modal-message">Your request has been sent to the backend.</p>
+            <div class="confirm-modal-actions">
+                <button id="confirm-modal-close" class="confirm-modal-close" type="button">Close</button>
+            </div>
+        </div>
+    </div>
     <script>
+        let confirmationTimeoutId = null;
+
+        function getActionLabel(form) {
+            const endpoint = form.getAttribute('hx-post') || form.getAttribute('action') || '';
+            if (endpoint.includes('/stocks/add-bulk-csv')) {
+                return 'Bulk CSV upload';
+            }
+            if (endpoint.includes('/stocks/add')) {
+                return 'Add request';
+            }
+            if (endpoint.includes('/stocks/update')) {
+                return 'Update request';
+            }
+            if (endpoint.includes('/stocks/delete')) {
+                return 'Delete request';
+            }
+            return 'Action';
+        }
+
+        function showConfirmation(title, message) {
+            const modal = document.getElementById('confirm-modal');
+            const titleEl = document.getElementById('confirm-modal-title');
+            const messageEl = document.getElementById('confirm-modal-message');
+            titleEl.textContent = title;
+            messageEl.textContent = message;
+            modal.classList.add('visible');
+
+            if (confirmationTimeoutId) {
+                clearTimeout(confirmationTimeoutId);
+            }
+            confirmationTimeoutId = setTimeout(() => {
+                hideConfirmation();
+            }, 3000);
+        }
+
+        function hideConfirmation() {
+            const modal = document.getElementById('confirm-modal');
+            modal.classList.remove('visible');
+        }
+
+        document.getElementById('confirm-modal-close').addEventListener('click', hideConfirmation);
+
+        document.getElementById('confirm-modal').addEventListener('click', (event) => {
+            if (event.target.id === 'confirm-modal') {
+                hideConfirmation();
+            }
+        });
+
+        document.body.addEventListener('htmx:afterRequest', (event) => {
+            const elt = event.detail && event.detail.elt;
+            if (!elt || !event.detail.xhr) {
+                return;
+            }
+
+            const form = elt.closest('form');
+            if (!form || !form.closest('.actions-grid')) {
+                return;
+            }
+
+            const actionLabel = getActionLabel(form);
+            if (event.detail.successful) {
+                showConfirmation('Action received', `${actionLabel} has been accepted by the backend.`);
+                return;
+            }
+
+            showConfirmation('Action failed', `${actionLabel} could not be accepted. Please retry.`);
+        });
+
         function toggleRangeInputs() {
             const mode = document.getElementById('add-range').value;
+            const inputs = document.querySelectorAll('#range-inputs input');
             document.getElementById('range-inputs').style.display = mode === 'custom' ? 'grid' : 'none';
+            inputs.forEach((input) => {
+                input.disabled = mode !== 'custom';
+                if (mode !== 'custom') {
+                    input.value = '';
+                }
+            });
         }
 
         function normalizeAddRange(event) {
@@ -493,8 +642,12 @@
                 const endInput = document.getElementById('add-end');
                 startInput.value = '';
                 endInput.value = '';
+                startInput.disabled = true;
+                endInput.disabled = true;
             }
         }
+
+        toggleRangeInputs();
     </script>
 </body>
 </html>

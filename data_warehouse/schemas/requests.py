@@ -49,6 +49,13 @@ class DeleteStockRequest(BaseModel):
     def normalize_ticker(cls, value: str) -> str:
         return value.strip().upper()
 
+    @field_validator("timeframe", mode="before")
+    @classmethod
+    def normalize_timeframe(cls, value: str | None) -> str | None:
+        if value in ("", None):
+            return None
+        return value
+
 
 class UpdateStockRequest(BaseModel):
     ticker: str = Field(..., min_length=1)

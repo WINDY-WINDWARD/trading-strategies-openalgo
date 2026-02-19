@@ -144,6 +144,11 @@ class WarehouseService:
                 interval_seconds=interval,
             )
 
+            if request.timeframe in {"1d", "1w", "1M"} and len(gaps) > 1:
+                gaps = [(selected_range.start_epoch, selected_range.end_epoch)]
+            elif gaps:
+                gaps = self._chunk_gaps(gaps, request.timeframe)
+
             inserted = 0
             if gaps:
                 for gap_start, gap_end in gaps:
@@ -181,6 +186,30 @@ class WarehouseService:
             )
         except Exception as exc:
             self.job_store.update(job_id, status="failed", error=str(exc))
+
+    def _chunk_gaps(
+        self, gaps: list[tuple[int, int]], timeframe: str
+    ) -> list[tuple[int, int]]:
+        if not gaps:
+            return []
+        chunk_days = {
+            "1m": 7,
+            "5m": 7,
+            "15m": 7,
+            "1h": 30,
+            "4h": 30,
+        }.get(timeframe)
+        if not chunk_days:
+            return gaps
+        max_span = chunk_days * 24 * 60 * 60
+        chunked: list[tuple[int, int]] = []
+        for start, end in gaps:
+            current = start
+            while current <= end:
+                chunk_end = min(current + max_span - 1, end)
+                chunked.append((current, chunk_end))
+                current = chunk_end + 1
+        return chunked
 
     def process_update(self, job_id: str, request: UpdateStockRequest) -> None:
         try:
