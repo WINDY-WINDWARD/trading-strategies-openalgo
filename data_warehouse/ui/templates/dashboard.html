@@ -81,6 +81,31 @@
             border: 1px solid var(--line);
         }
 
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px;
+        }
+
+        .stat-card {
+            padding: 14px;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.9);
+        }
+
+        .stat-card strong {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+
+        .stat-card span {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--ink);
+        }
+
         form {
             display: grid;
             gap: 12px;
@@ -366,8 +391,29 @@
                 </div>
             </div>
             <div class="card">
-                <h2>Quality</h2>
-                <p>Monitor coverage, missing ranges, and last updated epochs.</p>
+                <h2>Storage stats</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <strong>Tickers</strong>
+                        <span>{{ stats.ticker_count }}</span>
+                    </div>
+                    <div class="stat-card">
+                        <strong>Candles</strong>
+                        <span>{{ stats.candle_count }}</span>
+                    </div>
+                    <div class="stat-card">
+                        <strong>Timeframes</strong>
+                        <span>{{ stats.timeframe_count }}</span>
+                    </div>
+                    <div class="stat-card">
+                        <strong>Oldest candle</strong>
+                        <span>{{ stats.min_ist }}</span>
+                    </div>
+                    <div class="stat-card">
+                        <strong>Latest candle</strong>
+                        <span>{{ stats.max_ist }}</span>
+                    </div>
+                </div>
             </div>
             <div class="card">
                 <h2>Exports</h2>
@@ -417,9 +463,7 @@
                     action="/api/data-warehouse/stocks/add-bulk-csv"
                     method="post"
                     enctype="multipart/form-data"
-                    hx-post="/api/data-warehouse/stocks/add-bulk-csv"
-                    hx-swap="none"
-                    hx-encoding="multipart/form-data"
+                    onsubmit="return showUploadNotice(this)"
                 >
                     <div>
                         <label for="bulk-csv">CSV file</label>
@@ -595,6 +639,11 @@
             modal.classList.remove('visible');
         }
 
+        function showUploadNotice(form) {
+            showConfirmation('Uploading', 'Bulk CSV upload is in progress. Check the jobs panel for status.');
+            return true;
+        }
+
         document.getElementById('confirm-modal-close').addEventListener('click', hideConfirmation);
 
         document.getElementById('confirm-modal').addEventListener('click', (event) => {
@@ -611,6 +660,10 @@
 
             const form = elt.closest('form');
             if (!form || !form.closest('.actions-grid')) {
+                return;
+            }
+
+            if (form.getAttribute('action') && !form.getAttribute('hx-post')) {
                 return;
             }
 

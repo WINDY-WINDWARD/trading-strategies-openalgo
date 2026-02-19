@@ -487,6 +487,9 @@ class WarehouseService:
     def list_timeframes_for_ticker(self, ticker: str) -> list[str]:
         return self.repository.list_timeframes_for_ticker(ticker)
 
+    def get_storage_stats(self) -> dict:
+        return self.repository.get_storage_stats()
+
 
 class OpenAlgoProvider(Protocol):
     def fetch_ohlcv(

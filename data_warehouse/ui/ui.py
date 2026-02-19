@@ -33,11 +33,30 @@ def dashboard(request: Request):
     service = get_service()
     try:
         tickers = service.list_tickers()
+        stats = service.get_storage_stats()
     except RepositoryError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    ist = ZoneInfo("Asia/Kolkata")
+    min_epoch = stats.get("min_epoch")
+    max_epoch = stats.get("max_epoch")
+    stats_display = {
+        "ticker_count": stats.get("ticker_count", 0),
+        "candle_count": stats.get("candle_count", 0),
+        "timeframe_count": stats.get("timeframe_count", 0),
+        "min_ist": datetime.fromtimestamp(min_epoch, tz=timezone.utc)
+        .astimezone(ist)
+        .strftime("%Y-%m-%d")
+        if min_epoch
+        else "-",
+        "max_ist": datetime.fromtimestamp(max_epoch, tz=timezone.utc)
+        .astimezone(ist)
+        .strftime("%Y-%m-%d")
+        if max_epoch
+        else "-",
+    }
     return templates.TemplateResponse(
         "dashboard.html",
-        {"request": request, "tickers": tickers},
+        {"request": request, "tickers": tickers, "stats": stats_display},
     )
 
 

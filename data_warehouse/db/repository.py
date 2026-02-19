@@ -481,6 +481,37 @@ class WarehouseRepository:
             return 0
         return int(row["total"])
 
+    def get_storage_stats(self) -> dict:
+        try:
+            row = self.connection.execute(
+                """
+                SELECT
+                    (SELECT COUNT(1) FROM tickers) AS ticker_count,
+                    (SELECT COUNT(1) FROM ohlcv) AS candle_count,
+                    (SELECT COUNT(1) FROM ticker_timeframes) AS timeframe_count,
+                    (SELECT MIN(epoch) FROM ohlcv) AS min_epoch,
+                    (SELECT MAX(epoch) FROM ohlcv) AS max_epoch
+                """
+            ).fetchone()
+        except sqlite3.Error as exc:
+            logger.exception("Failed to read storage stats")
+            raise RepositoryError("Failed to read storage stats") from exc
+        if row is None:
+            return {
+                "ticker_count": 0,
+                "candle_count": 0,
+                "timeframe_count": 0,
+                "min_epoch": None,
+                "max_epoch": None,
+            }
+        return {
+            "ticker_count": row["ticker_count"],
+            "candle_count": row["candle_count"],
+            "timeframe_count": row["timeframe_count"],
+            "min_epoch": row["min_epoch"],
+            "max_epoch": row["max_epoch"],
+        }
+
     def delete_ohlcv(
         self,
         ticker: str,
