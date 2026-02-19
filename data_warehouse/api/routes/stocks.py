@@ -13,6 +13,7 @@ from ...schemas.requests import (
     GetStockRequest,
     UpdateStockRequest,
 )
+from ...core.errors import RepositoryError
 from ...services.warehouse_service import WarehouseService
 from ..deps import get_service
 
@@ -26,9 +27,12 @@ def add_stock_data(
     background_tasks: BackgroundTasks,
     service: WarehouseService = Depends(get_service),
 ):
-    job = service.enqueue_add(request)
-    background_tasks.add_task(service.process_add, job["job_id"], request)
-    return JSONResponse(status_code=202, content=job)
+    try:
+        job = service.enqueue_add(request)
+        background_tasks.add_task(service.process_add, job["job_id"], request)
+        return JSONResponse(status_code=202, content=job)
+    except RepositoryError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.post("/stocks/delete")
@@ -37,9 +41,12 @@ def delete_stock_data(
     background_tasks: BackgroundTasks,
     service: WarehouseService = Depends(get_service),
 ):
-    job = service.enqueue_delete(request)
-    background_tasks.add_task(service.process_delete, job["job_id"], request)
-    return JSONResponse(status_code=202, content=job)
+    try:
+        job = service.enqueue_delete(request)
+        background_tasks.add_task(service.process_delete, job["job_id"], request)
+        return JSONResponse(status_code=202, content=job)
+    except RepositoryError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.post("/stocks/update")
@@ -48,9 +55,12 @@ def update_stock_data(
     background_tasks: BackgroundTasks,
     service: WarehouseService = Depends(get_service),
 ):
-    job = service.enqueue_update(request)
-    background_tasks.add_task(service.process_update, job["job_id"], request)
-    return JSONResponse(status_code=202, content=job)
+    try:
+        job = service.enqueue_update(request)
+        background_tasks.add_task(service.process_update, job["job_id"], request)
+        return JSONResponse(status_code=202, content=job)
+    except RepositoryError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.post("/stocks/get")
@@ -68,6 +78,8 @@ def get_stock_data(
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RepositoryError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
     return JSONResponse(status_code=200, content=payload)
 
 
@@ -80,6 +92,8 @@ def export_stock_data(
         payload = service.get_stock_data_page(request=request, limit=10000, offset=0)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RepositoryError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(
@@ -106,9 +120,12 @@ def add_stock_data_bulk(
     background_tasks: BackgroundTasks,
     service: WarehouseService = Depends(get_service),
 ):
-    job = service.enqueue_bulk_add(request)
-    background_tasks.add_task(service.process_bulk_add, job["job_id"], request)
-    return JSONResponse(status_code=202, content=job)
+    try:
+        job = service.enqueue_bulk_add(request)
+        background_tasks.add_task(service.process_bulk_add, job["job_id"], request)
+        return JSONResponse(status_code=202, content=job)
+    except RepositoryError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.post("/stocks/add-bulk-csv")
@@ -125,9 +142,12 @@ async def add_stock_data_bulk_csv(
         if not cleaned:
             continue
         rows.append(cleaned)
-    job = service.job_store.create("bulk_csv")
-    background_tasks.add_task(service.process_bulk_csv, job["job_id"], rows)
-    return JSONResponse(status_code=202, content=job)
+    try:
+        job = service.job_store.create("bulk_csv")
+        background_tasks.add_task(service.process_bulk_csv, job["job_id"], rows)
+        return JSONResponse(status_code=202, content=job)
+    except RepositoryError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.get("/jobs/{job_id}")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
@@ -12,6 +13,7 @@ from typing import Protocol
 
 from ..core.openalgo_client import OpenAlgoClient
 from ..db.repository import WarehouseRepository
+from ..core.errors import ProviderError, RepositoryError
 from ..schemas.ohlcv_data import OHLCVCandle
 from ..schemas.requests import (
     AddStockRequest,
@@ -152,12 +154,16 @@ class WarehouseService:
             inserted = 0
             if gaps:
                 for gap_start, gap_end in gaps:
-                    candles = self.provider.fetch_ohlcv(
-                        ticker=request.ticker,
-                        timeframe=request.timeframe,
-                        start_epoch=gap_start,
-                        end_epoch=gap_end,
-                    )
+                    try:
+                        candles = self.provider.fetch_ohlcv(
+                            ticker=request.ticker,
+                            timeframe=request.timeframe,
+                            start_epoch=gap_start,
+                            end_epoch=gap_end,
+                        )
+                    except Exception as exc:
+                        logger.exception("Provider fetch failed")
+                        raise ProviderError("Provider fetch failed") from exc
                     inserted += self.repository.upsert_ohlcv_batch(
                         ticker=request.ticker,
                         timeframe=request.timeframe,
@@ -184,8 +190,12 @@ class WarehouseService:
                 inserted=0,
                 message="already present",
             )
-        except Exception as exc:
+        except (RepositoryError, ProviderError) as exc:
+            logger.exception("Add job failed")
             self.job_store.update(job_id, status="failed", error=str(exc))
+        except Exception as exc:
+            logger.exception("Add job failed")
+            self.job_store.update(job_id, status="failed", error="unexpected error")
 
     def _chunk_gaps(
         self, gaps: list[tuple[int, int]], timeframe: str
@@ -228,20 +238,28 @@ class WarehouseService:
             interval = TIMEFRAME_TO_SECONDS[request.timeframe]
             start_epoch = last_epoch + interval
             end_epoch = self.clock()
-            candles = self.provider.fetch_ohlcv(
-                ticker=request.ticker,
-                timeframe=request.timeframe,
-                start_epoch=start_epoch,
-                end_epoch=end_epoch,
-            )
+            try:
+                candles = self.provider.fetch_ohlcv(
+                    ticker=request.ticker,
+                    timeframe=request.timeframe,
+                    start_epoch=start_epoch,
+                    end_epoch=end_epoch,
+                )
+            except Exception as exc:
+                logger.exception("Provider fetch failed")
+                raise ProviderError("Provider fetch failed") from exc
             inserted = self.repository.upsert_ohlcv_batch(
                 ticker=request.ticker,
                 timeframe=request.timeframe,
                 candles=candles,
             )
             self.job_store.update(job_id, status="completed", inserted=inserted)
-        except Exception as exc:
+        except (RepositoryError, ProviderError) as exc:
+            logger.exception("Update job failed")
             self.job_store.update(job_id, status="failed", error=str(exc))
+        except Exception as exc:
+            logger.exception("Update job failed")
+            self.job_store.update(job_id, status="failed", error="unexpected error")
 
     def process_bulk_add(self, job_id: str, request: BulkAddRequest) -> None:
         try:
@@ -269,8 +287,12 @@ class WarehouseService:
                 failure_count=len(failures),
                 failures=failures,
             )
-        except Exception as exc:
+        except (RepositoryError, ProviderError) as exc:
+            logger.exception("Bulk add job failed")
             self.job_store.update(job_id, status="failed", error=str(exc))
+        except Exception as exc:
+            logger.exception("Bulk add job failed")
+            self.job_store.update(job_id, status="failed", error="unexpected error")
 
     def process_bulk_csv(self, job_id: str, rows: list[dict]) -> None:
         try:
@@ -334,8 +356,12 @@ class WarehouseService:
                 failure_count=0,
                 failures=[],
             )
-        except Exception as exc:
+        except (RepositoryError, ProviderError) as exc:
+            logger.exception("Bulk CSV job failed")
             self.job_store.update(job_id, status="failed", error=str(exc))
+        except Exception as exc:
+            logger.exception("Bulk CSV job failed")
+            self.job_store.update(job_id, status="failed", error="unexpected error")
 
     def get_stock_data(self, request: GetStockRequest) -> dict:
         return self.get_stock_data_page(
@@ -350,7 +376,12 @@ class WarehouseService:
         limit: int,
         offset: int,
     ) -> dict:
-        if not self.repository.ticker_exists(request.ticker):
+        try:
+            exists = self.repository.ticker_exists(request.ticker)
+        except RepositoryError as exc:
+            logger.exception("Ticker lookup failed")
+            raise RepositoryError("Ticker lookup failed") from exc
+        if not exists:
             raise ValueError("ticker not found")
         selected_range = request.range or self.default_range()
         candles = self.repository.get_ohlcv_page(
@@ -400,8 +431,12 @@ class WarehouseService:
                 end_epoch=end_epoch,
             )
             self.job_store.update(job_id, status="completed", deleted=deleted)
-        except Exception as exc:
+        except RepositoryError as exc:
+            logger.exception("Delete job failed")
             self.job_store.update(job_id, status="failed", error=str(exc))
+        except Exception as exc:
+            logger.exception("Delete job failed")
+            self.job_store.update(job_id, status="failed", error="unexpected error")
 
     def get_job(self, job_id: str) -> dict | None:
         return self.job_store.get(job_id)
@@ -438,3 +473,6 @@ class OpenAlgoProvider(Protocol):
         start_epoch: int,
         end_epoch: int,
     ) -> list[OHLCVCandle]: ...
+
+
+logger = logging.getLogger(__name__)

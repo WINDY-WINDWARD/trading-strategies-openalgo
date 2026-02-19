@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from ..api.deps import get_service
+from ..core.errors import RepositoryError
 from ..schemas.requests import EpochRange, GetStockRequest, Timeframe
 
 router = APIRouter()
@@ -30,7 +31,10 @@ templates.env.filters["datetimeformat"] = _format_epoch
 @router.get("/data-warehouse", response_class=HTMLResponse)
 def dashboard(request: Request):
     service = get_service()
-    tickers = service.list_tickers()
+    try:
+        tickers = service.list_tickers()
+    except RepositoryError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
     return templates.TemplateResponse(
         "dashboard.html",
         {"request": request, "tickers": tickers},
@@ -45,10 +49,13 @@ def jobs_fragment(
     page = int(request.query_params.get("page", 1))
     limit = int(request.query_params.get("limit", 10))
     offset = max(page - 1, 0) * limit
-    jobs = service.list_jobs(
-        status=status, job_type=job_type, limit=limit, offset=offset
-    )
-    total = service.count_jobs(status=status, job_type=job_type)
+    try:
+        jobs = service.list_jobs(
+            status=status, job_type=job_type, limit=limit, offset=offset
+        )
+        total = service.count_jobs(status=status, job_type=job_type)
+    except RepositoryError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
     total_pages = max((total + limit - 1) // limit, 1)
     active = [job for job in jobs if job.get("status") in {"queued", "running"}]
     return templates.TemplateResponse(
@@ -126,6 +133,8 @@ def ticker_view(request: Request, ticker: str, timeframe: Timeframe = "1d"):
                 )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RepositoryError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
     chart_candles = sorted(
         chart_payload.get("candles", []), key=lambda item: item["epoch"]
     )

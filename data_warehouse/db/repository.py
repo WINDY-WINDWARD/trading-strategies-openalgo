@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import time
 from typing import Iterable
 
+from ..core.errors import RepositoryError
 from ..schemas.ohlcv_data import OHLCVCandle
+
+logger = logging.getLogger(__name__)
 
 
 class WarehouseRepository:
@@ -22,50 +26,70 @@ class WarehouseRepository:
         self.connection = connection
 
     def ensure_ticker(self, ticker: str) -> int:
-        cursor = self.connection.execute(
-            "INSERT OR IGNORE INTO tickers (ticker) VALUES (?)",
-            (ticker,),
-        )
-        _ = cursor
-        row = self.connection.execute(
-            "SELECT id FROM tickers WHERE ticker = ?",
-            (ticker,),
-        ).fetchone()
-        if row is None:
-            raise ValueError(f"Ticker {ticker} could not be created")
-        return int(row["id"])
+        try:
+            cursor = self.connection.execute(
+                "INSERT OR IGNORE INTO tickers (ticker) VALUES (?)",
+                (ticker,),
+            )
+            _ = cursor
+            row = self.connection.execute(
+                "SELECT id FROM tickers WHERE ticker = ?",
+                (ticker,),
+            ).fetchone()
+            if row is None:
+                raise RepositoryError(f"Ticker {ticker} could not be created")
+            return int(row["id"])
+        except sqlite3.Error as exc:
+            logger.exception("Failed to ensure ticker %s", ticker)
+            raise RepositoryError("Failed to ensure ticker") from exc
 
     def ticker_exists(self, ticker: str) -> bool:
-        row = self.connection.execute(
-            "SELECT 1 FROM tickers WHERE ticker = ?",
-            (ticker,),
-        ).fetchone()
-        return row is not None
+        try:
+            row = self.connection.execute(
+                "SELECT 1 FROM tickers WHERE ticker = ?",
+                (ticker,),
+            ).fetchone()
+            return row is not None
+        except sqlite3.Error as exc:
+            logger.exception("Failed to check ticker %s", ticker)
+            raise RepositoryError("Failed to check ticker") from exc
 
     def list_tickers(self) -> list[str]:
-        rows = self.connection.execute(
-            "SELECT ticker FROM tickers ORDER BY ticker",
-        ).fetchall()
-        return [row["ticker"] for row in rows]
+        try:
+            rows = self.connection.execute(
+                "SELECT ticker FROM tickers ORDER BY ticker",
+            ).fetchall()
+            return [row["ticker"] for row in rows]
+        except sqlite3.Error as exc:
+            logger.exception("Failed to list tickers")
+            raise RepositoryError("Failed to list tickers") from exc
 
     def list_timeframes_for_ticker(self, ticker: str) -> list[str]:
-        row = self.connection.execute(
-            "SELECT id FROM tickers WHERE ticker = ?",
-            (ticker,),
-        ).fetchone()
+        try:
+            row = self.connection.execute(
+                "SELECT id FROM tickers WHERE ticker = ?",
+                (ticker,),
+            ).fetchone()
+        except sqlite3.Error as exc:
+            logger.exception("Failed to list timeframes for %s", ticker)
+            raise RepositoryError("Failed to list timeframes") from exc
         if row is None:
             return []
         ticker_id = int(row["id"])
-        rows = self.connection.execute(
-            """
-            SELECT DISTINCT timeframe
-            FROM ohlcv
-            WHERE ticker_id = ?
-            ORDER BY timeframe
-            """,
-            (ticker_id,),
-        ).fetchall()
-        return [row["timeframe"] for row in rows]
+        try:
+            rows = self.connection.execute(
+                """
+                SELECT DISTINCT timeframe
+                FROM ohlcv
+                WHERE ticker_id = ?
+                ORDER BY timeframe
+                """,
+                (ticker_id,),
+            ).fetchall()
+            return [row["timeframe"] for row in rows]
+        except sqlite3.Error as exc:
+            logger.exception("Failed to list timeframes for %s", ticker)
+            raise RepositoryError("Failed to list timeframes") from exc
 
     def get_existing_epochs(
         self,
@@ -74,22 +98,30 @@ class WarehouseRepository:
         start_epoch: int,
         end_epoch: int,
     ) -> list[int]:
-        row = self.connection.execute(
-            "SELECT id FROM tickers WHERE ticker = ?",
-            (ticker,),
-        ).fetchone()
+        try:
+            row = self.connection.execute(
+                "SELECT id FROM tickers WHERE ticker = ?",
+                (ticker,),
+            ).fetchone()
+        except sqlite3.Error as exc:
+            logger.exception("Failed to read epochs for %s", ticker)
+            raise RepositoryError("Failed to read epochs") from exc
         if row is None:
             return []
 
         ticker_id = int(row["id"])
-        rows = self.connection.execute(
-            """
-            SELECT epoch FROM ohlcv
-            WHERE ticker_id = ? AND timeframe = ? AND epoch BETWEEN ? AND ?
-            ORDER BY epoch
-            """,
-            (ticker_id, timeframe, start_epoch, end_epoch),
-        ).fetchall()
+        try:
+            rows = self.connection.execute(
+                """
+                SELECT epoch FROM ohlcv
+                WHERE ticker_id = ? AND timeframe = ? AND epoch BETWEEN ? AND ?
+                ORDER BY epoch
+                """,
+                (ticker_id, timeframe, start_epoch, end_epoch),
+            ).fetchall()
+        except sqlite3.Error as exc:
+            logger.exception("Failed to read epochs for %s", ticker)
+            raise RepositoryError("Failed to read epochs") from exc
         return [int(item["epoch"]) for item in rows]
 
     def upsert_ohlcv_batch(
@@ -155,11 +187,15 @@ class WarehouseRepository:
                 ),
             )
 
-        if use_transaction:
-            with self.connection:
+        try:
+            if use_transaction:
+                with self.connection:
+                    _execute()
+            else:
                 _execute()
-        else:
-            _execute()
+        except sqlite3.Error as exc:
+            logger.exception("Failed to upsert candles for %s %s", ticker, timeframe)
+            raise RepositoryError("Failed to upsert candles") from exc
 
         return len(candle_list)
 
@@ -170,22 +206,30 @@ class WarehouseRepository:
         start_epoch: int,
         end_epoch: int,
     ) -> list[dict]:
-        row = self.connection.execute(
-            "SELECT id FROM tickers WHERE ticker = ?",
-            (ticker,),
-        ).fetchone()
+        try:
+            row = self.connection.execute(
+                "SELECT id FROM tickers WHERE ticker = ?",
+                (ticker,),
+            ).fetchone()
+        except sqlite3.Error as exc:
+            logger.exception("Failed to read candles for %s", ticker)
+            raise RepositoryError("Failed to read candles") from exc
         if row is None:
             return []
         ticker_id = int(row["id"])
-        rows = self.connection.execute(
-            """
-            SELECT epoch, open, high, low, close, volume
-            FROM ohlcv
-            WHERE ticker_id = ? AND timeframe = ? AND epoch BETWEEN ? AND ?
-            ORDER BY epoch
-            """,
-            (ticker_id, timeframe, start_epoch, end_epoch),
-        ).fetchall()
+        try:
+            rows = self.connection.execute(
+                """
+                SELECT epoch, open, high, low, close, volume
+                FROM ohlcv
+                WHERE ticker_id = ? AND timeframe = ? AND epoch BETWEEN ? AND ?
+                ORDER BY epoch
+                """,
+                (ticker_id, timeframe, start_epoch, end_epoch),
+            ).fetchall()
+        except sqlite3.Error as exc:
+            logger.exception("Failed to read candles for %s", ticker)
+            raise RepositoryError("Failed to read candles") from exc
 
         return [
             {
@@ -208,23 +252,31 @@ class WarehouseRepository:
         limit: int,
         offset: int,
     ) -> list[dict]:
-        row = self.connection.execute(
-            "SELECT id FROM tickers WHERE ticker = ?",
-            (ticker,),
-        ).fetchone()
+        try:
+            row = self.connection.execute(
+                "SELECT id FROM tickers WHERE ticker = ?",
+                (ticker,),
+            ).fetchone()
+        except sqlite3.Error as exc:
+            logger.exception("Failed to read candles for %s", ticker)
+            raise RepositoryError("Failed to read candles") from exc
         if row is None:
             return []
         ticker_id = int(row["id"])
-        rows = self.connection.execute(
-            """
-            SELECT epoch, open, high, low, close, volume
-            FROM ohlcv
-            WHERE ticker_id = ? AND timeframe = ? AND epoch BETWEEN ? AND ?
-            ORDER BY epoch DESC
-            LIMIT ? OFFSET ?
-            """,
-            (ticker_id, timeframe, start_epoch, end_epoch, limit, offset),
-        ).fetchall()
+        try:
+            rows = self.connection.execute(
+                """
+                SELECT epoch, open, high, low, close, volume
+                FROM ohlcv
+                WHERE ticker_id = ? AND timeframe = ? AND epoch BETWEEN ? AND ?
+                ORDER BY epoch DESC
+                LIMIT ? OFFSET ?
+                """,
+                (ticker_id, timeframe, start_epoch, end_epoch, limit, offset),
+            ).fetchall()
+        except sqlite3.Error as exc:
+            logger.exception("Failed to read candles for %s", ticker)
+            raise RepositoryError("Failed to read candles") from exc
 
         return [
             {
@@ -245,41 +297,57 @@ class WarehouseRepository:
         start_epoch: int,
         end_epoch: int,
     ) -> int:
-        row = self.connection.execute(
-            "SELECT id FROM tickers WHERE ticker = ?",
-            (ticker,),
-        ).fetchone()
+        try:
+            row = self.connection.execute(
+                "SELECT id FROM tickers WHERE ticker = ?",
+                (ticker,),
+            ).fetchone()
+        except sqlite3.Error as exc:
+            logger.exception("Failed to count candles for %s", ticker)
+            raise RepositoryError("Failed to count candles") from exc
         if row is None:
             return 0
         ticker_id = int(row["id"])
-        data = self.connection.execute(
-            """
-            SELECT COUNT(1) AS total
-            FROM ohlcv
-            WHERE ticker_id = ? AND timeframe = ? AND epoch BETWEEN ? AND ?
-            """,
-            (ticker_id, timeframe, start_epoch, end_epoch),
-        ).fetchone()
+        try:
+            data = self.connection.execute(
+                """
+                SELECT COUNT(1) AS total
+                FROM ohlcv
+                WHERE ticker_id = ? AND timeframe = ? AND epoch BETWEEN ? AND ?
+                """,
+                (ticker_id, timeframe, start_epoch, end_epoch),
+            ).fetchone()
+        except sqlite3.Error as exc:
+            logger.exception("Failed to count candles for %s", ticker)
+            raise RepositoryError("Failed to count candles") from exc
         if data is None:
             return 0
         return int(data["total"])
 
     def get_ticker_timeframe_meta(self, ticker: str, timeframe: str) -> dict | None:
-        row = self.connection.execute(
-            "SELECT id FROM tickers WHERE ticker = ?",
-            (ticker,),
-        ).fetchone()
+        try:
+            row = self.connection.execute(
+                "SELECT id FROM tickers WHERE ticker = ?",
+                (ticker,),
+            ).fetchone()
+        except sqlite3.Error as exc:
+            logger.exception("Failed to read metadata for %s", ticker)
+            raise RepositoryError("Failed to read metadata") from exc
         if row is None:
             return None
         ticker_id = int(row["id"])
-        data = self.connection.execute(
-            """
-            SELECT last_updated_epoch, current_range_start_epoch, current_range_end_epoch
-            FROM ticker_timeframes
-            WHERE ticker_id = ? AND timeframe = ?
-            """,
-            (ticker_id, timeframe),
-        ).fetchone()
+        try:
+            data = self.connection.execute(
+                """
+                SELECT last_updated_epoch, current_range_start_epoch, current_range_end_epoch
+                FROM ticker_timeframes
+                WHERE ticker_id = ? AND timeframe = ?
+                """,
+                (ticker_id, timeframe),
+            ).fetchone()
+        except sqlite3.Error as exc:
+            logger.exception("Failed to read metadata for %s", ticker)
+            raise RepositoryError("Failed to read metadata") from exc
         if data is None:
             return None
         return {
@@ -289,33 +357,45 @@ class WarehouseRepository:
         }
 
     def create_job(self, job_id: str, job_type: str, status: str) -> None:
-        now = int(time.time())
-        with self.connection:
-            self.connection.execute(
-                """
-                INSERT INTO jobs (job_id, job_type, status, created_at, updated_at, data)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                (job_id, job_type, status, now, now, json.dumps({})),
-            )
+        try:
+            now = int(time.time())
+            with self.connection:
+                self.connection.execute(
+                    """
+                    INSERT INTO jobs (job_id, job_type, status, created_at, updated_at, data)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (job_id, job_type, status, now, now, json.dumps({})),
+                )
+        except sqlite3.Error as exc:
+            logger.exception("Failed to create job %s", job_id)
+            raise RepositoryError("Failed to create job") from exc
 
     def update_job(self, job_id: str, status: str, data: dict) -> None:
-        now = int(time.time())
-        with self.connection:
-            self.connection.execute(
-                """
-                UPDATE jobs
-                SET status = ?, updated_at = ?, data = ?
-                WHERE job_id = ?
-                """,
-                (status, now, json.dumps(data), job_id),
-            )
+        try:
+            now = int(time.time())
+            with self.connection:
+                self.connection.execute(
+                    """
+                    UPDATE jobs
+                    SET status = ?, updated_at = ?, data = ?
+                    WHERE job_id = ?
+                    """,
+                    (status, now, json.dumps(data), job_id),
+                )
+        except sqlite3.Error as exc:
+            logger.exception("Failed to update job %s", job_id)
+            raise RepositoryError("Failed to update job") from exc
 
     def get_job(self, job_id: str) -> dict | None:
-        row = self.connection.execute(
-            "SELECT job_id, job_type, status, created_at, updated_at, data FROM jobs WHERE job_id = ?",
-            (job_id,),
-        ).fetchone()
+        try:
+            row = self.connection.execute(
+                "SELECT job_id, job_type, status, created_at, updated_at, data FROM jobs WHERE job_id = ?",
+                (job_id,),
+            ).fetchone()
+        except sqlite3.Error as exc:
+            logger.exception("Failed to read job %s", job_id)
+            raise RepositoryError("Failed to read job") from exc
         if row is None:
             return None
         payload = json.loads(row["data"]) if row["data"] else {}
@@ -350,16 +430,20 @@ class WarehouseRepository:
         if limit is not None:
             limit_clause = "LIMIT ? OFFSET ?"
             params.extend([str(limit), str(offset or 0)])
-        rows = self.connection.execute(
-            f"""
-            SELECT job_id, job_type, status, created_at, updated_at, data
-            FROM jobs
-            {where_clause}
-            ORDER BY created_at DESC
-            {limit_clause}
-            """,
-            tuple(params),
-        ).fetchall()
+        try:
+            rows = self.connection.execute(
+                f"""
+                SELECT job_id, job_type, status, created_at, updated_at, data
+                FROM jobs
+                {where_clause}
+                ORDER BY created_at DESC
+                {limit_clause}
+                """,
+                tuple(params),
+            ).fetchall()
+        except sqlite3.Error as exc:
+            logger.exception("Failed to list jobs")
+            raise RepositoryError("Failed to list jobs") from exc
         jobs = []
         for row in rows:
             payload = json.loads(row["data"]) if row["data"] else {}
@@ -385,10 +469,14 @@ class WarehouseRepository:
             clauses.append("job_type = ?")
             params.append(job_type)
         where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-        row = self.connection.execute(
-            f"SELECT COUNT(1) AS total FROM jobs {where_clause}",
-            tuple(params),
-        ).fetchone()
+        try:
+            row = self.connection.execute(
+                f"SELECT COUNT(1) AS total FROM jobs {where_clause}",
+                tuple(params),
+            ).fetchone()
+        except sqlite3.Error as exc:
+            logger.exception("Failed to count jobs")
+            raise RepositoryError("Failed to count jobs") from exc
         if row is None:
             return 0
         return int(row["total"])
@@ -400,21 +488,29 @@ class WarehouseRepository:
         start_epoch: int | None,
         end_epoch: int | None,
     ) -> int:
-        row = self.connection.execute(
-            "SELECT id FROM tickers WHERE ticker = ?",
-            (ticker,),
-        ).fetchone()
+        try:
+            row = self.connection.execute(
+                "SELECT id FROM tickers WHERE ticker = ?",
+                (ticker,),
+            ).fetchone()
+        except sqlite3.Error as exc:
+            logger.exception("Failed to delete candles for %s", ticker)
+            raise RepositoryError("Failed to delete candles") from exc
         if row is None:
             return 0
         ticker_id = int(row["id"])
 
         if timeframe is None and start_epoch is None and end_epoch is None:
-            with self.connection:
-                deleted = self.connection.execute(
-                    "DELETE FROM tickers WHERE id = ?",
-                    (ticker_id,),
-                )
-            return int(deleted.rowcount)
+            try:
+                with self.connection:
+                    deleted = self.connection.execute(
+                        "DELETE FROM tickers WHERE id = ?",
+                        (ticker_id,),
+                    )
+                return int(deleted.rowcount)
+            except sqlite3.Error as exc:
+                logger.exception("Failed to delete ticker %s", ticker)
+                raise RepositoryError("Failed to delete ticker") from exc
 
         clauses = ["ticker_id = ?"]
         params: list[int | str] = [ticker_id]
@@ -425,13 +521,17 @@ class WarehouseRepository:
             clauses.append("epoch BETWEEN ? AND ?")
             params.extend([start_epoch, end_epoch])
 
-        with self.connection:
-            deleted = self.connection.execute(
-                f"DELETE FROM ohlcv WHERE {' AND '.join(clauses)}",
-                tuple(params),
-            )
+        try:
+            with self.connection:
+                deleted = self.connection.execute(
+                    f"DELETE FROM ohlcv WHERE {' AND '.join(clauses)}",
+                    tuple(params),
+                )
 
-        return int(deleted.rowcount)
+            return int(deleted.rowcount)
+        except sqlite3.Error as exc:
+            logger.exception("Failed to delete ohlcv for %s", ticker)
+            raise RepositoryError("Failed to delete candles") from exc
 
     def get_last_epoch(self, ticker: str, timeframe: str) -> int | None:
         row = self.connection.execute(

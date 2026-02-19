@@ -82,13 +82,17 @@ class OpenAlgoClient:
         start_dt = datetime.utcfromtimestamp(start_epoch)
         end_dt = datetime.utcfromtimestamp(end_epoch)
         self._rate_limit()
-        response = self.client.history(
-            symbol=ticker,
-            exchange=self.exchange,
-            interval=interval,
-            start_date=start_dt.strftime("%Y-%m-%d"),
-            end_date=end_dt.strftime("%Y-%m-%d"),
-        )
+        try:
+            response = self.client.history(
+                symbol=ticker,
+                exchange=self.exchange,
+                interval=interval,
+                start_date=start_dt.strftime("%Y-%m-%d"),
+                end_date=end_dt.strftime("%Y-%m-%d"),
+            )
+        except Exception as exc:  # pragma: no cover - depends on provider
+            self._logger.exception("OpenAlgo history request failed")
+            raise RuntimeError("OpenAlgo history request failed") from exc
 
         if not isinstance(response, pd.DataFrame) or response.empty:
             self._logger.warning(
@@ -115,15 +119,18 @@ class OpenAlgoClient:
             if timestamp.tzinfo is None:
                 timestamp = timestamp.replace(tzinfo=timezone.utc)
 
-            candles.append(
-                OHLCVCandle(
-                    epoch=int(timestamp.timestamp()),
-                    open=float(row["open"]),
-                    high=float(row["high"]),
-                    low=float(row["low"]),
-                    close=float(row["close"]),
-                    volume=int(row["volume"]),
+            try:
+                candles.append(
+                    OHLCVCandle(
+                        epoch=int(timestamp.timestamp()),
+                        open=float(row["open"]),
+                        high=float(row["high"]),
+                        low=float(row["low"]),
+                        close=float(row["close"]),
+                        volume=int(row["volume"]),
+                    )
                 )
-            )
+            except (KeyError, TypeError, ValueError) as exc:
+                self._logger.warning("Invalid candle row skipped: %s", exc)
 
         return candles
