@@ -1,0 +1,19 @@
+<div class="jobs-shell">
+    <div class="jobs-header">
+        <strong>Active Jobs</strong>
+        <span>{{ jobs | length }} running</span>
+    </div>
+    {% if jobs %}
+    <ul class="jobs-list">
+        {% for job in jobs %}
+        <li>
+            <span class="job-type">{{ job.job_type }}</span>
+            <a class="job-id" href="/api/data-warehouse/jobs/{{ job.job_id }}">{{ job.job_id }}</a>
+            <span class="job-status">{{ job.status }}</span>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <div class="jobs-empty">No active jobs</div>
+    {% endif %}
+</div>

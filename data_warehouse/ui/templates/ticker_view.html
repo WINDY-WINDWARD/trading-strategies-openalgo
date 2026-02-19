@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ ticker }} • Warehouse</title>
+    <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        :root {
+            color-scheme: light;
+            --ink: #14213d;
+            --muted: #5f6c7b;
+            --accent: #f77f00;
+            --accent-2: #1d3557;
+            --paper: #f6f1e7;
+            --card: #ffffff;
+            --line: #e6d7c3;
+            --shadow: 0 18px 40px rgba(20, 33, 61, 0.12);
+            --radius: 18px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Space Grotesk", "Segoe UI", sans-serif;
+            background: radial-gradient(circle at 20% 20%, rgba(247, 127, 0, 0.18), transparent 45%),
+                linear-gradient(160deg, #fff9f0 0%, #f4ead7 50%, #efe1c9 100%);
+            color: var(--ink);
+            min-height: 100vh;
+        }
+
+        main {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 24px 64px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        h1 {
+            font-size: clamp(2.2rem, 4vw, 3.2rem);
+            margin: 0;
+            letter-spacing: -0.02em;
+        }
+
+        .meta {
+            color: var(--muted);
+            margin-top: 8px;
+            font-size: 0.95rem;
+        }
+
+        .pill {
+            padding: 8px 16px;
+            border-radius: 999px;
+            background: rgba(247, 127, 0, 0.18);
+            color: var(--accent-2);
+            font-weight: 600;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+            gap: 24px;
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 22px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--line);
+        }
+
+        .chart-shell {
+            height: 420px;
+        }
+
+        .legend {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            color: var(--muted);
+        }
+
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .toolbar input,
+        .toolbar select {
+            padding: 8px 10px;
+            border-radius: 10px;
+            border: 1px solid var(--line);
+            font-size: 0.9rem;
+        }
+
+        .toolbar a {
+            padding: 8px 12px;
+            border-radius: 10px;
+            background: var(--accent-2);
+            color: #fff;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .toolbar button {
+            padding: 8px 12px;
+            border-radius: 10px;
+            border: none;
+            background: var(--accent);
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .legend strong {
+            color: var(--ink);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--line);
+            font-size: 0.92rem;
+        }
+
+        th {
+            color: var(--muted);
+            font-weight: 600;
+        }
+
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .meta-card {
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.8);
+        }
+
+        .meta-card strong {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--muted);
+        }
+
+        @media (max-width: 960px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+
+            header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <header>
+            <div>
+                <h1>{{ ticker }}</h1>
+                <div class="meta">Timeframe: {{ timeframe }} · Stored candles: {{ total }}</div>
+            </div>
+            <div class="pill">IST-aligned</div>
+        </header>
+
+        <section class="layout">
+            <div class="card">
+                <div class="legend">
+                    <strong>Price action</strong>
+                    <span>Latest view</span>
+                </div>
+                <div class="meta-grid">
+                    <div class="meta-card">
+                        <strong>Last updated (IST)</strong>
+                        <span>{{ meta.last_updated_ist or "-" }}</span>
+                    </div>
+                    <div class="meta-card">
+                        <strong>Range start (IST)</strong>
+                        <span>{{ meta.range_start_ist or "-" }}</span>
+                    </div>
+                    <div class="meta-card">
+                        <strong>Range end (IST)</strong>
+                        <span>{{ meta.range_end_ist or "-" }}</span>
+                    </div>
+                    <div class="meta-card">
+                        <strong>Total candles</strong>
+                        <span>{{ total }}</span>
+                    </div>
+                </div>
+                <div class="chart-shell" id="candles-chart"></div>
+            </div>
+
+            <div class="card">
+                <div class="legend">
+                    <strong>Recent candles</strong>
+                    <span>IST timestamps</span>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Close</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for candle in recent_candles %}
+                        <tr>
+                            <td>{{ candle.timestamp_ist }}</td>
+                            <td>{{ candle.close }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="card" style="margin-top: 24px;">
+            <div class="legend">
+                <strong>OHLCV table</strong>
+                <span>Page {{ page }}</span>
+            </div>
+            <div class="toolbar">
+                <form method="get" action="/data-warehouse/tickers/{{ ticker }}" style="display:flex; gap:12px; flex-wrap:wrap;">
+                    <input type="hidden" name="timeframe" value="{{ timeframe }}" />
+                    <input type="number" name="page" min="1" value="{{ page }}" />
+                    <input type="number" name="limit" min="10" max="500" value="{{ limit }}" />
+                    <button type="submit">Refresh</button>
+                </form>
+                <a href="/api/data-warehouse/stocks/export?ticker={{ ticker }}&timeframe={{ timeframe }}">Export CSV</a>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Timestamp (IST)</th>
+                        <th>Open</th>
+                        <th>High</th>
+                        <th>Low</th>
+                        <th>Close</th>
+                        <th>Volume</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for candle in page_candles %}
+                    <tr>
+                        <td>{{ candle.timestamp_ist }}</td>
+                        <td>{{ candle.open }}</td>
+                        <td>{{ candle.high }}</td>
+                        <td>{{ candle.low }}</td>
+                        <td>{{ candle.close }}</td>
+                        <td>{{ candle.volume }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    </main>
+    <script>
+        const chartContainer = document.getElementById("candles-chart");
+        const chart = LightweightCharts.createChart(chartContainer, {
+            width: chartContainer.clientWidth,
+            layout: {
+                background: { color: "#fffdf8" },
+                textColor: "#14213d",
+                fontFamily: "Space Grotesk, Segoe UI, sans-serif",
+            },
+            grid: {
+                vertLines: { color: "rgba(230, 215, 195, 0.6)" },
+                horzLines: { color: "rgba(230, 215, 195, 0.6)" },
+            },
+            rightPriceScale: { borderColor: "rgba(230, 215, 195, 0.8)" },
+            timeScale: { borderColor: "rgba(230, 215, 195, 0.8)" },
+            height: 420,
+        });
+
+        const series = chart.addCandlestickSeries({
+            upColor: "#1b7f6b",
+            downColor: "#e63946",
+            borderVisible: false,
+            wickUpColor: "#1b7f6b",
+            wickDownColor: "#e63946",
+        });
+
+        const candles = {{ candles | tojson }};
+        const seriesData = candles.map((candle) => ({
+            time: candle.epoch,
+            open: candle.open,
+            high: candle.high,
+            low: candle.low,
+            close: candle.close,
+        }));
+        if (seriesData.length) {
+            series.setData(seriesData);
+            chart.timeScale().fitContent();
+            window.addEventListener("resize", () => {
+                chart.applyOptions({ width: chartContainer.clientWidth });
+            });
+        }
+    </script>
+</body>
+</html>

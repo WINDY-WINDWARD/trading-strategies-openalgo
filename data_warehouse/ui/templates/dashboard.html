@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Data Warehouse Dashboard</title>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.12/dist/ext/json-enc.js"></script>
+    <style>
+        :root {
+            color-scheme: light;
+            --ink: #161616;
+            --muted: #6b6b6b;
+            --accent: #1b7f6b;
+            --accent-2: #0d3b66;
+            --paper: #f7f2ea;
+            --card: #ffffff;
+            --line: #e4d9c9;
+            --shadow: 0 20px 45px rgba(16, 16, 16, 0.08);
+            --radius: 18px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: "DM Sans", "Trebuchet MS", sans-serif;
+            color: var(--ink);
+            background: radial-gradient(circle at top, rgba(13, 59, 102, 0.14), transparent 55%),
+                linear-gradient(135deg, #faf6f0 0%, #f4efe7 50%, #efe4d6 100%);
+            min-height: 100vh;
+        }
+
+        main {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 48px 24px 64px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 24px;
+            margin-bottom: 36px;
+        }
+
+        h1 {
+            font-family: "Fraunces", "Times New Roman", serif;
+            font-size: clamp(2rem, 3vw, 3rem);
+            margin: 0;
+            letter-spacing: -0.02em;
+        }
+
+        .subtitle {
+            margin-top: 8px;
+            color: var(--muted);
+        }
+
+        .status-pill {
+            padding: 10px 16px;
+            border-radius: 999px;
+            background: rgba(27, 127, 107, 0.12);
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 24px;
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 24px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--line);
+        }
+
+        form {
+            display: grid;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        label {
+            font-size: 0.85rem;
+            color: var(--muted);
+        }
+
+        input,
+        select {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+            font-size: 0.95rem;
+            font-family: "DM Sans", "Trebuchet MS", sans-serif;
+        }
+
+        button {
+            padding: 10px 16px;
+            border-radius: 12px;
+            border: none;
+            background: var(--accent-2);
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .actions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-top: 24px;
+        }
+
+        .upload-note {
+            font-size: 0.82rem;
+            color: var(--muted);
+        }
+
+        .card h2 {
+            margin: 0 0 12px;
+            font-size: 1.2rem;
+        }
+
+        .card p {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+
+        .action-row {
+            margin-top: 16px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .action {
+            padding: 10px 16px;
+            border-radius: 12px;
+            border: 1px solid var(--accent-2);
+            background: transparent;
+            color: var(--accent-2);
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .job-panel {
+            margin-top: 28px;
+            padding: 18px 20px;
+            border-radius: 16px;
+            border: 1px dashed var(--line);
+            background: rgba(255, 255, 255, 0.8);
+            color: var(--muted);
+        }
+
+        .filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .filters select {
+            min-width: 160px;
+        }
+
+        .jobs-shell {
+            display: grid;
+            gap: 12px;
+        }
+
+        .jobs-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+            color: var(--ink);
+        }
+
+        .jobs-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: grid;
+            gap: 8px;
+        }
+
+        .jobs-list li {
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid var(--line);
+            font-size: 0.9rem;
+        }
+
+        .job-type {
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.08em;
+            color: var(--accent-2);
+        }
+
+        .job-id {
+            font-family: "Fira Mono", "Courier New", monospace;
+            color: var(--muted);
+            text-decoration: none;
+        }
+
+        .job-status {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        @media (max-width: 720px) {
+            header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <header>
+            <div>
+                <h1>Data Warehouse</h1>
+                <div class="subtitle">Local OHLCV archive with gap-aware ingest.</div>
+            </div>
+            <div class="status-pill" id="jobs-status">No active jobs</div>
+        </header>
+        <section class="grid">
+            <div class="card">
+                <h2>Ingest</h2>
+                <p>Add or update tickers with gap detection and metadata tracking.</p>
+                <div class="action-row">
+                    <a class="action" href="/data-warehouse/tickers/RELIANCE?timeframe=1d">View RELIANCE</a>
+                </div>
+            </div>
+            <div class="card">
+                <h2>Quality</h2>
+                <p>Monitor coverage, missing ranges, and last updated epochs.</p>
+            </div>
+            <div class="card">
+                <h2>Exports</h2>
+                <p>Query stored candles for diagnostics and downstream analysis.</p>
+            </div>
+        </section>
+        <section class="actions-grid">
+            <div class="card">
+                <h2>Add</h2>
+                <form hx-post="/api/data-warehouse/stocks/add" hx-swap="none" hx-encoding="json">
+                    <div>
+                        <label for="add-ticker">Ticker</label>
+                        <input id="add-ticker" name="ticker" placeholder="RELIANCE" required />
+                    </div>
+                    <div>
+                        <label for="add-timeframe">Timeframe</label>
+                        <select id="add-timeframe" name="timeframe">
+                            <option value="1m">1m</option>
+                            <option value="5m">5m</option>
+                            <option value="15m">15m</option>
+                            <option value="1h">1h</option>
+                            <option value="4h">4h</option>
+                            <option value="1d" selected>1d</option>
+                            <option value="1w">1w</option>
+                            <option value="1M">1M</option>
+                        </select>
+                    </div>
+                    <button type="submit">Queue Add</button>
+                </form>
+            </div>
+            <div class="card">
+                <h2>Bulk CSV</h2>
+                <form action="/api/data-warehouse/stocks/add-bulk-csv" method="post" enctype="multipart/form-data">
+                    <div>
+                        <label for="bulk-csv">CSV file</label>
+                        <input id="bulk-csv" type="file" name="file" accept=".csv" required />
+                    </div>
+                    <div class="upload-note">Headers: ticker, timeframe, range (JSON)</div>
+                    <button type="submit">Upload CSV</button>
+                </form>
+            </div>
+            <div class="card">
+                <h2>Update</h2>
+                <form hx-post="/api/data-warehouse/stocks/update" hx-swap="none" hx-encoding="json">
+                    <div>
+                        <label for="update-ticker">Ticker</label>
+                        <input id="update-ticker" name="ticker" placeholder="RELIANCE" required />
+                    </div>
+                    <div>
+                        <label for="update-timeframe">Timeframe</label>
+                        <select id="update-timeframe" name="timeframe">
+                            <option value="1m">1m</option>
+                            <option value="5m">5m</option>
+                            <option value="15m">15m</option>
+                            <option value="1h">1h</option>
+                            <option value="4h">4h</option>
+                            <option value="1d" selected>1d</option>
+                            <option value="1w">1w</option>
+                            <option value="1M">1M</option>
+                        </select>
+                    </div>
+                    <button type="submit">Queue Update</button>
+                </form>
+            </div>
+            <div class="card">
+                <h2>Delete</h2>
+                <form hx-post="/api/data-warehouse/stocks/delete" hx-swap="none" hx-encoding="json">
+                    <div>
+                        <label for="delete-ticker">Ticker</label>
+                        <input id="delete-ticker" name="ticker" placeholder="RELIANCE" required />
+                    </div>
+                    <div>
+                        <label for="delete-timeframe">Timeframe (optional)</label>
+                        <select id="delete-timeframe" name="timeframe">
+                            <option value="">All</option>
+                            <option value="1m">1m</option>
+                            <option value="5m">5m</option>
+                            <option value="15m">15m</option>
+                            <option value="1h">1h</option>
+                            <option value="4h">4h</option>
+                            <option value="1d">1d</option>
+                            <option value="1w">1w</option>
+                            <option value="1M">1M</option>
+                        </select>
+                    </div>
+                    <button type="submit">Delete Data</button>
+                </form>
+            </div>
+        </section>
+        <section class="job-panel">
+            <div class="filters">
+                <label for="filter-status">Status</label>
+                <select
+                    id="filter-status"
+                    name="status"
+                    hx-get="/data-warehouse/fragments/jobs"
+                    hx-trigger="change, load"
+                    hx-target="#jobs-panel"
+                    hx-swap="innerHTML"
+                >
+                    <option value="">All</option>
+                    <option value="queued">Queued</option>
+                    <option value="running">Running</option>
+                    <option value="completed">Completed</option>
+                    <option value="failed">Failed</option>
+                </select>
+                <label for="filter-type">Job type</label>
+                <select
+                    id="filter-type"
+                    name="job_type"
+                    hx-get="/data-warehouse/fragments/jobs"
+                    hx-trigger="change, load"
+                    hx-target="#jobs-panel"
+                    hx-swap="innerHTML"
+                >
+                    <option value="">All</option>
+                    <option value="add">Add</option>
+                    <option value="update">Update</option>
+                    <option value="delete">Delete</option>
+                    <option value="bulk_add">Bulk Add</option>
+                </select>
+            </div>
+            <div
+                id="jobs-panel"
+                hx-get="/data-warehouse/fragments/jobs"
+                hx-trigger="load, every 6s"
+                hx-include="#filter-status, #filter-type"
+                hx-swap="innerHTML"
+            >
+                Loading job queue...
+            </div>
+        </section>
+    </main>
+</body>
+</html>
