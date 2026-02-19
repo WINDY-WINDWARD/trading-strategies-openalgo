@@ -7,17 +7,31 @@
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
     <script src="https://unpkg.com/htmx.org@1.9.12/dist/ext/json-enc.js"></script>
     <style>
+        {% include 'fragments/navbar_styles.html' %}
         :root {
             color-scheme: light;
-            --ink: #161616;
-            --muted: #6b6b6b;
-            --accent: #1b7f6b;
-            --accent-2: #0d3b66;
-            --paper: #f7f2ea;
-            --card: #ffffff;
-            --line: #e4d9c9;
-            --shadow: 0 20px 45px rgba(16, 16, 16, 0.08);
-            --radius: 18px;
+            --radius: 0.75rem;
+            --background: oklch(0.985 0.01 100);
+            --foreground: oklch(0.18 0.02 95);
+            --card: oklch(1 0 0);
+            --card-foreground: oklch(0.18 0.02 95);
+            --popover: oklch(1 0 0);
+            --popover-foreground: oklch(0.18 0.02 95);
+            --primary: oklch(0.34 0.08 152);
+            --primary-foreground: oklch(0.98 0 0);
+            --secondary: oklch(0.96 0.01 98);
+            --secondary-foreground: oklch(0.2 0.02 95);
+            --muted: oklch(0.96 0.01 98);
+            --muted-foreground: oklch(0.52 0.02 95);
+            --accent: oklch(0.92 0.03 140);
+            --accent-foreground: oklch(0.22 0.05 140);
+            --destructive: oklch(0.55 0.22 27);
+            --destructive-foreground: oklch(0.98 0 0);
+            --border: oklch(0.9 0.015 95);
+            --input: oklch(0.9 0.015 95);
+            --ring: oklch(0.56 0.08 152 / 0.35);
+            --shadow: 0 12px 28px rgba(24, 20, 14, 0.12);
+            --shadow-sm: 0 6px 18px rgba(24, 20, 14, 0.08);
         }
 
         * {
@@ -26,10 +40,11 @@
 
         body {
             margin: 0;
-            font-family: "DM Sans", "Trebuchet MS", sans-serif;
-            color: var(--ink);
-            background: radial-gradient(circle at top, rgba(13, 59, 102, 0.14), transparent 55%),
-                linear-gradient(135deg, #faf6f0 0%, #f4efe7 50%, #efe4d6 100%);
+            font-family: "Space Grotesk", "Segoe UI", sans-serif;
+            color: var(--foreground);
+            background: radial-gradient(circle at 15% 10%, rgba(61, 132, 99, 0.18), transparent 45%),
+                radial-gradient(circle at 85% 0%, rgba(63, 90, 122, 0.12), transparent 48%),
+                linear-gradient(145deg, #fdfcf9 0%, #f4efe5 45%, #ece1cf 100%);
             min-height: 100vh;
         }
 
@@ -47,8 +62,12 @@
             margin-bottom: 36px;
         }
 
+        :root {
+            --nav-width: 1120px;
+        }
+
         h1 {
-            font-family: "Fraunces", "Times New Roman", serif;
+            font-family: "Fraunces", "Georgia", serif;
             font-size: clamp(2rem, 3vw, 3rem);
             margin: 0;
             letter-spacing: -0.02em;
@@ -56,14 +75,14 @@
 
         .subtitle {
             margin-top: 8px;
-            color: var(--muted);
+            color: var(--muted-foreground);
         }
 
         .status-pill {
             padding: 10px 16px;
             border-radius: 999px;
-            background: rgba(27, 127, 107, 0.12);
-            color: var(--accent);
+            background: var(--accent);
+            color: var(--accent-foreground);
             font-weight: 600;
         }
 
@@ -78,7 +97,23 @@
             border-radius: var(--radius);
             padding: 24px;
             box-shadow: var(--shadow);
-            border: 1px solid var(--line);
+            border: 1px solid var(--border);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(61, 132, 99, 0.12), transparent 45%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        .card:hover::after {
+            opacity: 1;
         }
 
         .stats-grid {
@@ -89,21 +124,22 @@
 
         .stat-card {
             padding: 14px;
-            border-radius: 12px;
-            border: 1px solid var(--line);
-            background: rgba(255, 255, 255, 0.9);
+            border-radius: calc(var(--radius) - 4px);
+            border: 1px solid var(--border);
+            background: var(--card);
+            box-shadow: var(--shadow-sm);
         }
 
         .stat-card strong {
             display: block;
             font-size: 0.8rem;
-            color: var(--muted);
+            color: var(--muted-foreground);
         }
 
         .stat-card span {
             font-size: 1.1rem;
             font-weight: 600;
-            color: var(--ink);
+            color: var(--foreground);
         }
 
         form {
@@ -114,27 +150,48 @@
 
         label {
             font-size: 0.85rem;
-            color: var(--muted);
+            color: var(--muted-foreground);
         }
 
         input,
         select {
             width: 100%;
             padding: 10px 12px;
-            border-radius: 12px;
-            border: 1px solid var(--line);
+            border-radius: calc(var(--radius) - 4px);
+            border: 1px solid var(--input);
             font-size: 0.95rem;
-            font-family: "DM Sans", "Trebuchet MS", sans-serif;
+            font-family: "Space Grotesk", "Segoe UI", sans-serif;
+            background: var(--card);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        input:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px var(--ring);
         }
 
         button {
             padding: 10px 16px;
-            border-radius: 12px;
+            border-radius: calc(var(--radius) - 4px);
             border: none;
-            background: var(--accent-2);
-            color: #fff;
+            background: var(--primary);
+            color: var(--primary-foreground);
             font-weight: 600;
             cursor: pointer;
+            box-shadow: var(--shadow-sm);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow);
+        }
+
+        button:active {
+            transform: translateY(0);
+            opacity: 0.9;
         }
 
         .actions-grid {
@@ -146,7 +203,7 @@
 
         .upload-note {
             font-size: 0.82rem;
-            color: var(--muted);
+            color: var(--muted-foreground);
         }
 
         .card h2 {
@@ -156,7 +213,7 @@
 
         .card p {
             margin: 0;
-            color: var(--muted);
+            color: var(--muted-foreground);
             line-height: 1.5;
         }
 
@@ -169,21 +226,26 @@
 
         .action {
             padding: 10px 16px;
-            border-radius: 12px;
-            border: 1px solid var(--accent-2);
-            background: transparent;
-            color: var(--accent-2);
+            border-radius: calc(var(--radius) - 4px);
+            border: 1px solid var(--border);
+            background: var(--secondary);
+            color: var(--secondary-foreground);
             font-weight: 600;
             text-decoration: none;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .action:hover {
+            box-shadow: var(--shadow);
         }
 
         .job-panel {
             margin-top: 28px;
             padding: 18px 20px;
             border-radius: 16px;
-            border: 1px dashed var(--line);
-            background: rgba(255, 255, 255, 0.8);
-            color: var(--muted);
+            border: 1px dashed var(--border);
+            background: rgba(255, 255, 255, 0.75);
+            color: var(--muted-foreground);
         }
 
         .filters {
@@ -209,19 +271,24 @@
         .ticker-select a {
             padding: 8px 12px;
             border-radius: 10px;
-            border: 1px solid var(--line);
+            border: 1px solid var(--border);
             text-decoration: none;
-            color: var(--accent-2);
+            color: var(--secondary-foreground);
             font-weight: 600;
-            background: #fff;
+            background: var(--secondary);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .ticker-select a:hover {
+            box-shadow: var(--shadow);
         }
 
         .job-status.failed {
-            color: #e63946;
+            color: var(--destructive);
         }
 
         .job-status.completed {
-            color: #1b7f6b;
+            color: var(--primary);
         }
 
         .jobs-shell {
@@ -234,7 +301,16 @@
             justify-content: space-between;
             align-items: center;
             font-weight: 600;
-            color: var(--ink);
+            color: var(--foreground);
+        }
+
+        .jobs-empty {
+            padding: 12px 14px;
+            border-radius: calc(var(--radius) - 4px);
+            border: 1px dashed var(--border);
+            background: var(--secondary);
+            color: var(--muted-foreground);
+            font-size: 0.9rem;
         }
 
         .jobs-list {
@@ -250,9 +326,9 @@
             grid-template-columns: auto 1fr auto;
             gap: 12px;
             padding: 10px 12px;
-            border-radius: 12px;
-            background: rgba(255, 255, 255, 0.9);
-            border: 1px solid var(--line);
+            border-radius: calc(var(--radius) - 4px);
+            background: var(--card);
+            border: 1px solid var(--border);
             font-size: 0.9rem;
         }
 
@@ -261,7 +337,7 @@
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 6px 12px;
             font-size: 0.82rem;
-            color: var(--muted);
+            color: var(--muted-foreground);
         }
 
         .pagination {
@@ -274,10 +350,15 @@
         .pagination button {
             padding: 6px 10px;
             border-radius: 10px;
-            border: 1px solid var(--line);
-            background: #fff;
-            color: var(--accent-2);
+            border: 1px solid var(--border);
+            background: var(--secondary);
+            color: var(--secondary-foreground);
             cursor: pointer;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .pagination button:hover {
+            box-shadow: var(--shadow);
         }
 
         #range-inputs {
@@ -289,17 +370,17 @@
             text-transform: uppercase;
             font-size: 0.75rem;
             letter-spacing: 0.08em;
-            color: var(--accent-2);
+            color: var(--muted-foreground);
         }
 
         .job-id {
             font-family: "Fira Mono", "Courier New", monospace;
-            color: var(--muted);
+            color: var(--muted-foreground);
             text-decoration: none;
         }
 
         .job-status {
-            color: var(--accent);
+            color: var(--primary);
             font-weight: 600;
         }
 
@@ -309,7 +390,7 @@
             display: none;
             align-items: center;
             justify-content: center;
-            background: rgba(22, 22, 22, 0.45);
+            background: rgba(20, 18, 15, 0.45);
             padding: 24px;
             z-index: 1200;
         }
@@ -321,7 +402,7 @@
         .confirm-modal-card {
             width: min(460px, 100%);
             background: var(--card);
-            border: 1px solid var(--line);
+            border: 1px solid var(--border);
             border-radius: 16px;
             box-shadow: var(--shadow);
             padding: 20px;
@@ -332,12 +413,12 @@
         .confirm-modal-title {
             margin: 0;
             font-size: 1.1rem;
-            color: var(--ink);
+            color: var(--foreground);
         }
 
         .confirm-modal-message {
             margin: 0;
-            color: var(--muted);
+            color: var(--muted-foreground);
             line-height: 1.4;
         }
 
@@ -349,11 +430,15 @@
         .confirm-modal-close {
             padding: 8px 14px;
             border-radius: 10px;
-            border: 1px solid var(--line);
-            background: #fff;
-            color: var(--accent-2);
+            border: 1px solid var(--border);
+            background: var(--secondary);
+            color: var(--secondary-foreground);
             cursor: pointer;
             font-weight: 600;
+        }
+
+        .confirm-modal-close:hover {
+            box-shadow: var(--shadow-sm);
         }
 
         @media (max-width: 720px) {
@@ -365,6 +450,7 @@
     </style>
 </head>
 <body hx-ext="json-enc">
+    {% include 'fragments/navbar.html' %}
     <main>
         <header>
             <div>
@@ -415,10 +501,6 @@
                     </div>
                 </div>
             </div>
-            <div class="card">
-                <h2>Exports</h2>
-                <p>Query stored candles for diagnostics and downstream analysis.</p>
-            </div>
         </section>
         <section class="actions-grid">
             <div class="card">
@@ -457,7 +539,7 @@
                     <button type="submit">Queue Add</button>
                 </form>
             </div>
-            <div class="card">
+            <div class="card" id="upload">
                 <h2>Bulk CSV</h2>
                 <form
                     action="/api/data-warehouse/stocks/add-bulk-csv"

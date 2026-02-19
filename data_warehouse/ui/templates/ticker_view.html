@@ -6,17 +6,31 @@
     <title>{{ ticker }} • Warehouse</title>
     <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
     <style>
+        {% include 'fragments/navbar_styles.html' %}
         :root {
             color-scheme: light;
-            --ink: #14213d;
-            --muted: #5f6c7b;
-            --accent: #f77f00;
-            --accent-2: #1d3557;
-            --paper: #f6f1e7;
-            --card: #ffffff;
-            --line: #e6d7c3;
-            --shadow: 0 18px 40px rgba(20, 33, 61, 0.12);
-            --radius: 18px;
+            --radius: 0.75rem;
+            --background: oklch(0.985 0.01 100);
+            --foreground: oklch(0.18 0.02 95);
+            --card: oklch(1 0 0);
+            --card-foreground: oklch(0.18 0.02 95);
+            --popover: oklch(1 0 0);
+            --popover-foreground: oklch(0.18 0.02 95);
+            --primary: oklch(0.34 0.08 152);
+            --primary-foreground: oklch(0.98 0 0);
+            --secondary: oklch(0.96 0.01 98);
+            --secondary-foreground: oklch(0.2 0.02 95);
+            --muted: oklch(0.96 0.01 98);
+            --muted-foreground: oklch(0.52 0.02 95);
+            --accent: oklch(0.92 0.03 140);
+            --accent-foreground: oklch(0.22 0.05 140);
+            --destructive: oklch(0.55 0.22 27);
+            --destructive-foreground: oklch(0.98 0 0);
+            --border: oklch(0.9 0.015 95);
+            --input: oklch(0.9 0.015 95);
+            --ring: oklch(0.56 0.08 152 / 0.35);
+            --shadow: 0 12px 28px rgba(24, 20, 14, 0.12);
+            --shadow-sm: 0 6px 18px rgba(24, 20, 14, 0.08);
         }
 
         * {
@@ -26,9 +40,10 @@
         body {
             margin: 0;
             font-family: "Space Grotesk", "Segoe UI", sans-serif;
-            background: radial-gradient(circle at 20% 20%, rgba(247, 127, 0, 0.18), transparent 45%),
-                linear-gradient(160deg, #fff9f0 0%, #f4ead7 50%, #efe1c9 100%);
-            color: var(--ink);
+            background: radial-gradient(circle at 15% 10%, rgba(61, 132, 99, 0.18), transparent 45%),
+                radial-gradient(circle at 85% 0%, rgba(63, 90, 122, 0.12), transparent 48%),
+                linear-gradient(145deg, #fdfcf9 0%, #f4efe5 45%, #ece1cf 100%);
+            color: var(--foreground);
             min-height: 100vh;
         }
 
@@ -46,6 +61,10 @@
             margin-bottom: 32px;
         }
 
+        :root {
+            --nav-width: 1200px;
+        }
+
         h1 {
             font-size: clamp(2.2rem, 4vw, 3.2rem);
             margin: 0;
@@ -53,7 +72,7 @@
         }
 
         .meta {
-            color: var(--muted);
+            color: var(--muted-foreground);
             margin-top: 8px;
             font-size: 0.95rem;
         }
@@ -61,8 +80,8 @@
         .pill {
             padding: 8px 16px;
             border-radius: 999px;
-            background: rgba(247, 127, 0, 0.18);
-            color: var(--accent-2);
+            background: var(--accent);
+            color: var(--accent-foreground);
             font-weight: 600;
         }
 
@@ -77,7 +96,23 @@
             border-radius: var(--radius);
             padding: 22px;
             box-shadow: var(--shadow);
-            border: 1px solid var(--line);
+            border: 1px solid var(--border);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(61, 132, 99, 0.12), transparent 45%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        .card:hover::after {
+            opacity: 1;
         }
 
         .chart-shell {
@@ -89,7 +124,7 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 16px;
-            color: var(--muted);
+            color: var(--muted-foreground);
         }
 
         .toolbar {
@@ -102,10 +137,10 @@
 
         .alert {
             padding: 12px 14px;
-            border-radius: 12px;
-            border: 1px solid rgba(230, 57, 70, 0.3);
-            background: rgba(230, 57, 70, 0.08);
-            color: #a11c2a;
+            border-radius: calc(var(--radius) - 4px);
+            border: 1px solid color-mix(in oklch, var(--destructive), white 55%);
+            background: color-mix(in oklch, var(--destructive), white 86%);
+            color: color-mix(in oklch, var(--destructive), black 35%);
             font-size: 0.92rem;
         }
 
@@ -117,28 +152,51 @@
         .toolbar input,
         .toolbar select {
             padding: 8px 10px;
-            border-radius: 10px;
-            border: 1px solid var(--line);
+            border-radius: calc(var(--radius) - 4px);
+            border: 1px solid var(--input);
             font-size: 0.9rem;
+            background: var(--card);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .toolbar input:focus,
+        .toolbar select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px var(--ring);
         }
 
         .toolbar a {
             padding: 8px 12px;
-            border-radius: 10px;
-            background: var(--accent-2);
-            color: #fff;
+            border-radius: calc(var(--radius) - 4px);
+            background: var(--primary);
+            color: var(--primary-foreground);
             text-decoration: none;
             font-weight: 600;
+            box-shadow: var(--shadow-sm);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+        }
+
+        .toolbar a:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow);
         }
 
         .toolbar button {
             padding: 8px 12px;
-            border-radius: 10px;
+            border-radius: calc(var(--radius) - 4px);
             border: none;
-            background: var(--accent);
-            color: #fff;
+            background: var(--secondary);
+            color: var(--secondary-foreground);
             font-weight: 600;
             cursor: pointer;
+            box-shadow: var(--shadow-sm);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+        }
+
+        .toolbar button:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow);
         }
 
         .timeframe-picker {
@@ -158,23 +216,38 @@
 
         .range-form button {
             padding: 8px 12px;
-            border-radius: 10px;
+            border-radius: calc(var(--radius) - 4px);
             border: none;
-            background: var(--accent-2);
-            color: #fff;
+            background: var(--primary);
+            color: var(--primary-foreground);
             font-weight: 600;
             cursor: pointer;
+            box-shadow: var(--shadow-sm);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .range-form button:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow);
         }
 
         .timeframe-picker select {
             padding: 8px 10px;
-            border-radius: 10px;
-            border: 1px solid var(--line);
+            border-radius: calc(var(--radius) - 4px);
+            border: 1px solid var(--input);
             font-size: 0.9rem;
+            background: var(--card);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .timeframe-picker select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px var(--ring);
         }
 
         .legend strong {
-            color: var(--ink);
+            color: var(--foreground);
         }
 
         table {
@@ -191,7 +264,7 @@
         }
 
         th {
-            color: var(--muted);
+            color: var(--muted-foreground);
             font-weight: 600;
         }
 
@@ -204,15 +277,16 @@
 
         .meta-card {
             padding: 12px;
-            border-radius: 12px;
-            border: 1px solid var(--line);
-            background: rgba(255, 255, 255, 0.8);
+            border-radius: calc(var(--radius) - 4px);
+            border: 1px solid var(--border);
+            background: var(--card);
+            box-shadow: var(--shadow-sm);
         }
 
         .meta-card strong {
             display: block;
             font-size: 0.85rem;
-            color: var(--muted);
+            color: var(--muted-foreground);
         }
 
         @media (max-width: 960px) {
@@ -224,10 +298,16 @@
                 flex-direction: column;
                 align-items: flex-start;
             }
+
+            .nav-inner {
+                flex-direction: column;
+                align-items: flex-start;
+            }
         }
     </style>
 </head>
 <body>
+    {% include 'fragments/navbar.html' %}
     <main>
         <header>
             <div>
@@ -364,24 +444,24 @@
             width: chartContainer.clientWidth,
             layout: {
                 background: { color: "#fffdf8" },
-                textColor: "#14213d",
+                textColor: "#2b251a",
                 fontFamily: "Space Grotesk, Segoe UI, sans-serif",
             },
             grid: {
-                vertLines: { color: "rgba(230, 215, 195, 0.6)" },
-                horzLines: { color: "rgba(230, 215, 195, 0.6)" },
+                vertLines: { color: "rgba(232, 224, 209, 0.6)" },
+                horzLines: { color: "rgba(232, 224, 209, 0.6)" },
             },
-            rightPriceScale: { borderColor: "rgba(230, 215, 195, 0.8)" },
-            timeScale: { borderColor: "rgba(230, 215, 195, 0.8)" },
+            rightPriceScale: { borderColor: "rgba(232, 224, 209, 0.8)" },
+            timeScale: { borderColor: "rgba(232, 224, 209, 0.8)" },
             height: 420,
         });
 
         const series = chart.addCandlestickSeries({
-            upColor: "#1b7f6b",
-            downColor: "#e63946",
+            upColor: "#3b8b68",
+            downColor: "#c95a4d",
             borderVisible: false,
-            wickUpColor: "#1b7f6b",
-            wickDownColor: "#e63946",
+            wickUpColor: "#3b8b68",
+            wickDownColor: "#c95a4d",
         });
 
         const candles = {{ candles | tojson }};
