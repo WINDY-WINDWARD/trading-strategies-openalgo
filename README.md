@@ -371,6 +371,7 @@ Comprehensive guides to help you get started and master the platform:
 - **[Web Dashboard Guide](docs/WEB_DASHBOARD_README.md)** - Interactive web interface for monitoring and controlling your trading bots
 - **[Quick Start Guide](docs/QUICK_START_GUIDE.md)** - Get up and running in minutes
 - **[New Strategy Documentation Setup](docs/NEW_STRATEGY_DOCUMENTATION_SETUP.md)** - Checklist for adding a new strategy and documenting it end-to-end
+- **[Data Warehouse Guide](docs/DATA_WAREHOUSE_GUIDE.md)** - SQLite OHLCV archive, APIs, jobs, and UI
 
 ### Additional Resources
 - **[README](README.md)** - This file - comprehensive overview of all features
