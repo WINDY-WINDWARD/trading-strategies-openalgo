@@ -83,6 +83,28 @@ Fields include `job_id`, `job_type`, `status`, timestamps, and extra metadata.
 Typical states:
 - `queued`, `running`, `completed`, `failed`
 
+## CSV format (bulk ingest)
+
+You can use a friendlier format with dates (recommended), or the legacy range JSON.
+
+Option A: date columns (recommended)
+```csv
+ticker,timeframe,start_date,end_date
+RELIANCE,1d,2024-01-01,2024-06-30
+IDFCFIRSTB,1h,2024-02-01,2024-02-15
+```
+
+Option B: range JSON (legacy)
+```csv
+ticker,timeframe,range
+RELIANCE,1d,"{""start_epoch"":1704067200,""end_epoch"":1719705600}"
+```
+
+Notes:
+- `timeframe` must be one of: `1m, 5m, 15m, 1h, 4h, 1d, 1w, 1M`.
+- If `start_date`/`end_date` are provided, they override `range`.
+- If no range is provided, the default last-1-year range is used.
+
 ## OpenAlgo configuration
 
 Environment variables:

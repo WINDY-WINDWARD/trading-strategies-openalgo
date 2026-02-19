@@ -302,6 +302,13 @@ class WarehouseService:
 
             for index, row in enumerate(rows):
                 try:
+                    for key in ("range", "start_date", "end_date"):
+                        if (
+                            key in row
+                            and isinstance(row[key], str)
+                            and not row[key].strip()
+                        ):
+                            row[key] = None
                     if (
                         "range" in row
                         and isinstance(row["range"], str)
@@ -318,7 +325,23 @@ class WarehouseService:
 
             with self.repository.connection:
                 for add_request in requests:
-                    selected_range = add_request.range or self.default_range()
+                    selected_range = add_request.range
+                    if add_request.start_date and add_request.end_date:
+                        start_epoch = int(
+                            datetime.combine(
+                                add_request.start_date, datetime.min.time()
+                            ).timestamp()
+                        )
+                        end_epoch = int(
+                            datetime.combine(
+                                add_request.end_date, datetime.max.time()
+                            ).timestamp()
+                        )
+                        selected_range = EpochRange(
+                            start_epoch=start_epoch, end_epoch=end_epoch
+                        )
+                    if selected_range is None:
+                        selected_range = self.default_range()
                     interval = TIMEFRAME_TO_SECONDS[add_request.timeframe]
                     existing_epochs = self.repository.get_existing_epochs(
                         ticker=add_request.ticker,

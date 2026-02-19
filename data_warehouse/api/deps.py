@@ -53,9 +53,10 @@ class _FakeOpenAlgoClient:
 def get_service() -> WarehouseService:
     global _service, _service_db_path
     env_db_path = os.getenv("DW_DB_PATH")
-    db_path = env_db_path or str(
-        Path(__file__).resolve().parents[1] / "db" / "tickerData.db"
-    )
+    if os.getenv("DW_TESTING") == "1" and env_db_path:
+        db_path = env_db_path
+    else:
+        db_path = str(Path(__file__).resolve().parents[1] / "db" / "tickerData.db")
     if _service is None or _service_db_path != db_path:
         if _service is not None:
             try:
