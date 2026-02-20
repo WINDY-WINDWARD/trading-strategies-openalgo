@@ -20,6 +20,7 @@ from ..schemas.requests import (
     BulkAddRequest,
     DeleteStockRequest,
     EpochRange,
+    GapFillRequest,
     GetStockRequest,
     Timeframe,
     UpdateStockRequest,
@@ -114,6 +115,9 @@ class WarehouseService:
     def enqueue_delete(self, request: DeleteStockRequest) -> dict:
         return self.job_store.create("delete")
 
+    def enqueue_gap_fill(self, request: GapFillRequest) -> dict:
+        return self.job_store.create("gap_fill")
+
     def process_add(self, job_id: str, request: AddStockRequest) -> None:
         selected_range: EpochRange = self.default_range()
         try:
@@ -134,6 +138,13 @@ class WarehouseService:
                     start_epoch=start_epoch, end_epoch=end_epoch
                 )
 
+            self.job_store.update(
+                job_id,
+                selected_range=selected_range.model_dump(),
+                current_ticker=request.ticker,
+                current_timeframe=request.timeframe,
+            )
+
             has_existing_data = (
                 self.repository.get_last_epoch(request.ticker, request.timeframe)
                 is not None
@@ -150,6 +161,12 @@ class WarehouseService:
                 except Exception as exc:
                     logger.exception("Provider fetch failed")
                     raise ProviderError("Provider fetch failed") from exc
+
+                self.job_store.update(
+                    job_id,
+                    fetched_count=len(candles),
+                    message="initial fetch",
+                )
 
                 inserted = self.repository.upsert_ohlcv_batch(
                     ticker=request.ticker,
@@ -193,6 +210,12 @@ class WarehouseService:
             elif gaps:
                 gaps = self._chunk_gaps(gaps, request.timeframe)
 
+            self.job_store.update(
+                job_id,
+                gap_count=len(gaps),
+                message="gap scan complete" if gaps else "no gaps found",
+            )
+
             inserted = 0
             if gaps:
                 for gap_start, gap_end in gaps:
@@ -206,6 +229,14 @@ class WarehouseService:
                     except Exception as exc:
                         logger.exception("Provider fetch failed")
                         raise ProviderError("Provider fetch failed") from exc
+                    self.job_store.update(
+                        job_id,
+                        current_gap={
+                            "start_epoch": gap_start,
+                            "end_epoch": gap_end,
+                        },
+                        fetched_count=len(candles),
+                    )
                     inserted += self.repository.upsert_ohlcv_batch(
                         ticker=request.ticker,
                         timeframe=request.timeframe,
@@ -326,6 +357,8 @@ class WarehouseService:
                 total_count=total,
                 processed_count=0,
                 progress_pct=0,
+                selected_range=selected_range.model_dump(),
+                current_timeframe=request.timeframe,
             )
             successes = 0
             failures: list[dict] = []
@@ -536,6 +569,114 @@ class WarehouseService:
             self.job_store.update(job_id, status="failed", error=str(exc))
         except Exception as exc:
             logger.exception("Bulk CSV job failed")
+            self.job_store.update(job_id, status="failed", error="unexpected error")
+
+    def process_gap_fill(self, job_id: str, request: GapFillRequest) -> None:
+        try:
+            tickers = self.repository.list_tickers()
+            selected_range = request.range
+            if request.start_date and request.end_date:
+                start_epoch = int(
+                    datetime.combine(
+                        request.start_date, datetime.min.time()
+                    ).timestamp()
+                )
+                end_epoch = int(
+                    datetime.combine(request.end_date, datetime.max.time()).timestamp()
+                )
+                selected_range = EpochRange(
+                    start_epoch=start_epoch, end_epoch=end_epoch
+                )
+            if selected_range is None:
+                selected_range = self.default_range()
+
+            total = len(tickers)
+            self.job_store.update(
+                job_id,
+                status="running",
+                total_count=total,
+                processed_count=0,
+                progress_pct=0,
+            )
+
+            interval_seconds = TIMEFRAME_TO_SECONDS[request.timeframe]
+            for index, ticker in enumerate(tickers, start=1):
+                self.job_store.update(
+                    job_id,
+                    current_ticker=ticker,
+                    current_timeframe=request.timeframe,
+                    processed_count=index - 1,
+                    progress_pct=min(100, int(round(((index - 1) / total) * 100)))
+                    if total
+                    else 0,
+                )
+                try:
+                    existing_epochs = self.repository.get_existing_epochs(
+                        ticker=ticker,
+                        timeframe=request.timeframe,
+                        start_epoch=selected_range.start_epoch,
+                        end_epoch=selected_range.end_epoch,
+                    )
+                except RepositoryError:
+                    existing_epochs = []
+
+                gaps = detect_missing_ranges(
+                    start_epoch=selected_range.start_epoch,
+                    end_epoch=selected_range.end_epoch,
+                    existing_epochs=existing_epochs,
+                    interval_seconds=interval_seconds,
+                )
+                if request.timeframe in {"1d", "1w", "1M"} and len(gaps) > 1:
+                    gaps = [(selected_range.start_epoch, selected_range.end_epoch)]
+                elif gaps:
+                    gaps = self._chunk_gaps(gaps, request.timeframe)
+
+                self.job_store.update(
+                    job_id,
+                    gap_count=len(gaps),
+                    message="gap scan complete" if gaps else "no gaps found",
+                )
+
+                if gaps:
+                    for gap_start, gap_end in gaps:
+                        try:
+                            candles = self.provider.fetch_ohlcv(
+                                ticker=ticker,
+                                timeframe=request.timeframe,
+                                start_epoch=gap_start,
+                                end_epoch=gap_end,
+                            )
+                        except Exception as exc:
+                            logger.exception("Provider fetch failed")
+                            raise ProviderError("Provider fetch failed") from exc
+                        self.job_store.update(
+                            job_id,
+                            current_gap={
+                                "start_epoch": gap_start,
+                                "end_epoch": gap_end,
+                            },
+                            fetched_count=len(candles),
+                        )
+                        if candles:
+                            self.repository.upsert_ohlcv_batch(
+                                ticker=ticker,
+                                timeframe=request.timeframe,
+                                candles=candles,
+                            )
+                        time.sleep(0.4)
+                time.sleep(0.2)
+
+            self.job_store.update(
+                job_id,
+                status="completed",
+                processed_count=total,
+                progress_pct=100,
+            )
+        except (RepositoryError, ProviderError) as exc:
+            logger.exception("Gap fill job failed")
+            self.job_store.update(job_id, status="failed", error=str(exc))
+        except Exception:
+            logger.exception("Gap fill job failed")
             self.job_store.update(job_id, status="failed", error="unexpected error")
 
     def get_stock_data(self, request: GetStockRequest) -> dict:

@@ -10,6 +10,7 @@ from ...schemas.requests import (
     AddStockRequest,
     BulkAddRequest,
     DeleteStockRequest,
+    GapFillRequest,
     GetStockRequest,
     UpdateTickerMetadataRequest,
     UpdateStockRequest,
@@ -166,6 +167,20 @@ async def add_stock_data_bulk_csv(
     try:
         job = service.job_store.create("bulk_csv")
         background_tasks.add_task(service.process_bulk_csv, job["job_id"], rows)
+        return JSONResponse(status_code=202, content=job)
+    except RepositoryError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/stocks/gap-fill")
+def gap_fill_stocks(
+    request: GapFillRequest,
+    background_tasks: BackgroundTasks,
+    service: WarehouseService = Depends(get_service),
+):
+    try:
+        job = service.enqueue_gap_fill(request)
+        background_tasks.add_task(service.process_gap_fill, job["job_id"], request)
         return JSONResponse(status_code=202, content=job)
     except RepositoryError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc

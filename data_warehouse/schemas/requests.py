@@ -119,3 +119,16 @@ class BulkAddRow(BaseModel):
 
 class BulkAddRequest(BaseModel):
     rows: list[BulkAddRow] = Field(default_factory=list, min_length=1)
+
+
+class GapFillRequest(BaseModel):
+    timeframe: Timeframe = "1d"
+    range: EpochRange | None = None
+    start_date: date | None = None
+    end_date: date | None = None
+
+    @model_validator(mode="after")
+    def validate_date_range(self) -> "GapFillRequest":
+        if (self.start_date is None) ^ (self.end_date is None):
+            raise ValueError("start_date and end_date must be provided together")
+        return self

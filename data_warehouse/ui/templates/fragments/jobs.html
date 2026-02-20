@@ -25,6 +25,22 @@
                     {% if job.current_timeframe %}({{ job.current_timeframe }}){% endif %}
                 </span>
                 {% endif %}
+                {% if job.selected_range %}
+                <span>
+                    Range: {{ job.selected_range.start_epoch }} → {{ job.selected_range.end_epoch }}
+                </span>
+                {% endif %}
+                {% if job.gap_count is defined %}
+                <span>Gaps: {{ job.gap_count }}</span>
+                {% endif %}
+                {% if job.fetched_count is defined %}
+                <span>Fetched: {{ job.fetched_count }}</span>
+                {% endif %}
+                {% if job.current_gap %}
+                <span>
+                    Gap: {{ job.current_gap.start_epoch }} → {{ job.current_gap.end_epoch }}
+                </span>
+                {% endif %}
                 {% if job.inserted is defined %}
                 <span>Inserted: {{ job.inserted }}</span>
                 {% endif %}
