@@ -13,6 +13,18 @@
             <div class="job-meta">
                 <span>Created: {{ job.created_at | datetimeformat }}</span>
                 <span>Updated: {{ job.updated_at | datetimeformat }}</span>
+                {% if job.progress_pct is defined %}
+                <span>Progress: {{ job.progress_pct }}%</span>
+                {% endif %}
+                {% if job.processed_count is defined and job.total_count is defined %}
+                <span>Processed: {{ job.processed_count }}/{{ job.total_count }}</span>
+                {% endif %}
+                {% if job.current_ticker %}
+                <span>
+                    Current: {{ job.current_ticker }}
+                    {% if job.current_timeframe %}({{ job.current_timeframe }}){% endif %}
+                </span>
+                {% endif %}
                 {% if job.inserted is defined %}
                 <span>Inserted: {{ job.inserted }}</span>
                 {% endif %}

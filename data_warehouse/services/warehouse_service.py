@@ -263,11 +263,31 @@ class WarehouseService:
 
     def process_bulk_add(self, job_id: str, request: BulkAddRequest) -> None:
         try:
-            self.job_store.update(job_id, status="running")
+            total = len(request.rows)
+            self.job_store.update(
+                job_id,
+                status="running",
+                total_count=total,
+                processed_count=0,
+                progress_pct=0,
+            )
             successes = 0
             failures: list[dict] = []
 
-            for index, row in enumerate(request.rows):
+            for index, row in enumerate(request.rows, start=1):
+                progress_pct = (
+                    min(100, int(round(((index - 1) / total) * 100)))
+                    if total
+                    else 0
+                )
+                self.job_store.update(
+                    job_id,
+                    current_ticker=row.ticker,
+                    current_timeframe=row.timeframe,
+                    total_count=total,
+                    processed_count=index - 1,
+                    progress_pct=progress_pct,
+                )
                 try:
                     add_request = AddStockRequest(
                         ticker=row.ticker,
@@ -278,7 +298,18 @@ class WarehouseService:
                     self.process_add(nested_job["job_id"], add_request)
                     successes += 1
                 except Exception as exc:
-                    failures.append({"row": index, "error": str(exc)})
+                    failures.append({"row": index - 1, "error": str(exc)})
+                progress_pct = (
+                    min(100, int(round((index / total) * 100))) if total else 100
+                )
+                self.job_store.update(
+                    job_id,
+                    current_ticker=row.ticker,
+                    current_timeframe=row.timeframe,
+                    total_count=total,
+                    processed_count=index,
+                    progress_pct=progress_pct,
+                )
 
             self.job_store.update(
                 job_id,
@@ -323,8 +354,29 @@ class WarehouseService:
             if failures:
                 raise ValueError("Bulk CSV contains invalid rows")
 
+            total = len(requests)
+            self.job_store.update(
+                job_id,
+                status="running",
+                total_count=total,
+                processed_count=0,
+                progress_pct=0,
+            )
             with self.repository.connection:
-                for add_request in requests:
+                for index, add_request in enumerate(requests, start=1):
+                    progress_pct = (
+                        min(100, int(round(((index - 1) / total) * 100)))
+                        if total
+                        else 0
+                    )
+                    self.job_store.update(
+                        job_id,
+                        current_ticker=add_request.ticker,
+                        current_timeframe=add_request.timeframe,
+                        total_count=total,
+                        processed_count=index - 1,
+                        progress_pct=progress_pct,
+                    )
                     selected_range = add_request.range
                     if add_request.start_date and add_request.end_date:
                         start_epoch = int(
@@ -371,6 +423,19 @@ class WarehouseService:
                                 candles=candles,
                                 use_transaction=False,
                             )
+                    progress_pct = (
+                        min(100, int(round((index / total) * 100)))
+                        if total
+                        else 100
+                    )
+                    self.job_store.update(
+                        job_id,
+                        current_ticker=add_request.ticker,
+                        current_timeframe=add_request.timeframe,
+                        total_count=total,
+                        processed_count=index,
+                        progress_pct=progress_pct,
+                    )
 
             self.job_store.update(
                 job_id,
