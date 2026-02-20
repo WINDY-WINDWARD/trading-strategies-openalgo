@@ -60,6 +60,19 @@ def dashboard(request: Request):
     )
 
 
+@router.get("/data-warehouse/manage-tickers", response_class=HTMLResponse)
+def manage_tickers_view(request: Request):
+    service = get_service()
+    try:
+        tickers = service.list_ticker_metadata()
+    except RepositoryError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return templates.TemplateResponse(
+        "manage_tickers.html",
+        {"request": request, "tickers": tickers},
+    )
+
+
 @router.get("/data-warehouse/fragments/jobs", response_class=HTMLResponse)
 def jobs_fragment(
     request: Request, status: str | None = None, job_type: str | None = None
@@ -206,11 +219,13 @@ def failed_ingestions_view(request: Request):
     limit = int(request.query_params.get("limit", 50))
     offset = max(page - 1, 0) * limit
     try:
-        failures = service.list_failed_ingestions(status="failed", limit=limit, offset=offset)
+        failures = service.list_failed_ingestions(
+            status="failed", limit=limit, offset=offset
+        )
         total = service.count_failed_ingestions(status="failed")
     except RepositoryError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    
+
     total_pages = max((total + limit - 1) // limit, 1)
     ist = ZoneInfo("Asia/Kolkata")
     for failure in failures:
@@ -222,7 +237,9 @@ def failed_ingestions_view(request: Request):
             )
         if failure.get("requested_start_epoch"):
             failure["start_date"] = (
-                datetime.fromtimestamp(failure["requested_start_epoch"], tz=timezone.utc)
+                datetime.fromtimestamp(
+                    failure["requested_start_epoch"], tz=timezone.utc
+                )
                 .astimezone(ist)
                 .strftime("%Y-%m-%d")
             )
@@ -232,7 +249,7 @@ def failed_ingestions_view(request: Request):
                 .astimezone(ist)
                 .strftime("%Y-%m-%d")
             )
-    
+
     return templates.TemplateResponse(
         "failed_ingestions.html",
         {

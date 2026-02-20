@@ -91,6 +91,51 @@ class WarehouseRepository:
             logger.exception("Failed to list timeframes for %s", ticker)
             raise RepositoryError("Failed to list timeframes") from exc
 
+    def list_ticker_metadata(self) -> list[dict]:
+        try:
+            rows = self.connection.execute(
+                """
+                SELECT ticker, sector, company_name, exchange
+                FROM tickers
+                ORDER BY ticker
+                """
+            ).fetchall()
+        except sqlite3.Error as exc:
+            logger.exception("Failed to list ticker metadata")
+            raise RepositoryError("Failed to list ticker metadata") from exc
+        return [
+            {
+                "ticker": row["ticker"],
+                "sector": row["sector"],
+                "company_name": row["company_name"],
+                "exchange": row["exchange"],
+            }
+            for row in rows
+        ]
+
+    def update_ticker_metadata(
+        self,
+        ticker: str,
+        sector: str | None,
+        company_name: str | None,
+        exchange: str | None,
+    ) -> None:
+        try:
+            with self.connection:
+                updated = self.connection.execute(
+                    """
+                    UPDATE tickers
+                    SET sector = ?, company_name = ?, exchange = ?
+                    WHERE ticker = ?
+                    """,
+                    (sector, company_name, exchange, ticker),
+                )
+        except sqlite3.Error as exc:
+            logger.exception("Failed to update metadata for %s", ticker)
+            raise RepositoryError("Failed to update ticker metadata") from exc
+        if updated.rowcount == 0:
+            raise RepositoryError(f"Ticker {ticker} not found")
+
     def get_existing_epochs(
         self,
         ticker: str,

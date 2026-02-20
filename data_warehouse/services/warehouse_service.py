@@ -21,8 +21,10 @@ from ..schemas.requests import (
     DeleteStockRequest,
     EpochRange,
     GetStockRequest,
+    Timeframe,
     UpdateStockRequest,
 )
+from typing import cast
 
 
 class JobStore:
@@ -113,10 +115,12 @@ class WarehouseService:
         return self.job_store.create("delete")
 
     def process_add(self, job_id: str, request: AddStockRequest) -> None:
+        selected_range: EpochRange = self.default_range()
         try:
             self.job_store.update(job_id, status="running")
             self.repository.ensure_ticker(request.ticker)
-            selected_range = request.range
+            if request.range is not None:
+                selected_range = request.range
             if request.start_date and request.end_date:
                 start_epoch = int(
                     datetime.combine(
@@ -129,8 +133,6 @@ class WarehouseService:
                 selected_range = EpochRange(
                     start_epoch=start_epoch, end_epoch=end_epoch
                 )
-            if selected_range is None:
-                selected_range = self.default_range()
 
             has_existing_data = (
                 self.repository.get_last_epoch(request.ticker, request.timeframe)
@@ -330,9 +332,7 @@ class WarehouseService:
 
             for index, row in enumerate(request.rows, start=1):
                 progress_pct = (
-                    min(100, int(round(((index - 1) / total) * 100)))
-                    if total
-                    else 0
+                    min(100, int(round(((index - 1) / total) * 100))) if total else 0
                 )
                 self.job_store.update(
                     job_id,
@@ -513,9 +513,7 @@ class WarehouseService:
                                 use_transaction=False,
                             )
                     progress_pct = (
-                        min(100, int(round((index / total) * 100)))
-                        if total
-                        else 100
+                        min(100, int(round((index / total) * 100))) if total else 100
                     )
                     self.job_store.update(
                         job_id,
@@ -622,9 +620,7 @@ class WarehouseService:
                 end_epoch=selected_range.end_epoch,
             )
         except Exception:
-            logger.exception(
-                "Auto-fetch failed for %s %s", ticker, timeframe
-            )
+            logger.exception("Auto-fetch failed for %s %s", ticker, timeframe)
             return
 
         if not candles:
@@ -681,6 +677,23 @@ class WarehouseService:
     def list_timeframes_for_ticker(self, ticker: str) -> list[str]:
         return self.repository.list_timeframes_for_ticker(ticker)
 
+    def list_ticker_metadata(self) -> list[dict]:
+        return self.repository.list_ticker_metadata()
+
+    def update_ticker_metadata(
+        self,
+        ticker: str,
+        sector: str | None,
+        company_name: str | None,
+        exchange: str | None,
+    ) -> None:
+        self.repository.update_ticker_metadata(
+            ticker=ticker,
+            sector=sector,
+            company_name=company_name,
+            exchange=exchange,
+        )
+
     def get_storage_stats(self) -> dict:
         return self.repository.get_storage_stats()
 
@@ -700,7 +713,12 @@ class WarehouseService:
         return self.repository.count_failed_ingestions(status=status)
 
     def retry_failed_ingestion(
-        self, failed_id: int, ticker: str, timeframe: str, start_epoch: int, end_epoch: int
+        self,
+        failed_id: int,
+        ticker: str,
+        timeframe: str,
+        start_epoch: int,
+        end_epoch: int,
     ) -> dict:
         """Retry a previously failed ingestion with new parameters."""
         job = self.job_store.create("retry_failed")
@@ -708,7 +726,9 @@ class WarehouseService:
 
         try:
             request = AddStockRequest(
-                ticker=ticker, timeframe=timeframe, range=EpochRange(start_epoch=start_epoch, end_epoch=end_epoch)
+                ticker=ticker,
+                timeframe=cast(Timeframe, timeframe),
+                range=EpochRange(start_epoch=start_epoch, end_epoch=end_epoch),
             )
             self.process_add(job["job_id"], request)
             # Mark as resolved if successful

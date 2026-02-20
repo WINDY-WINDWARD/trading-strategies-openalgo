@@ -11,6 +11,7 @@ from ...schemas.requests import (
     BulkAddRequest,
     DeleteStockRequest,
     GetStockRequest,
+    UpdateTickerMetadataRequest,
     UpdateStockRequest,
 )
 from ...core.errors import RepositoryError
@@ -59,6 +60,26 @@ def update_stock_data(
         job = service.enqueue_update(request)
         background_tasks.add_task(service.process_update, job["job_id"], request)
         return JSONResponse(status_code=202, content=job)
+    except RepositoryError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/tickers/metadata")
+def update_ticker_metadata(
+    request: UpdateTickerMetadataRequest,
+    service: WarehouseService = Depends(get_service),
+):
+    try:
+        service.update_ticker_metadata(
+            ticker=request.ticker,
+            sector=request.sector,
+            company_name=request.company_name,
+            exchange=request.exchange,
+        )
+        return JSONResponse(
+            status_code=200,
+            content={"status": "updated", "ticker": request.ticker},
+        )
     except RepositoryError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 

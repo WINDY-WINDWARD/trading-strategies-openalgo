@@ -67,6 +67,26 @@ class UpdateStockRequest(BaseModel):
         return value.strip().upper()
 
 
+class UpdateTickerMetadataRequest(BaseModel):
+    ticker: str = Field(..., min_length=1)
+    sector: str | None = None
+    company_name: str | None = None
+    exchange: str | None = None
+
+    @field_validator("ticker")
+    @classmethod
+    def normalize_ticker(cls, value: str) -> str:
+        return value.strip().upper()
+
+    @field_validator("sector", "company_name", "exchange", mode="before")
+    @classmethod
+    def normalize_optional_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None
+
+
 class GetStockRequest(BaseModel):
     ticker: str = Field(..., min_length=1)
     timeframe: Timeframe = "1d"

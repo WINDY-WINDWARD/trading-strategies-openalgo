@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Manage Tickers • Data Warehouse</title>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.12/dist/ext/json-enc.js"></script>
+    <style>
+        {% include 'fragments/navbar_styles.html' %}
+        :root {
+            color-scheme: light;
+            --radius: 0.75rem;
+            --background: oklch(0.985 0.01 100);
+            --foreground: oklch(0.18 0.02 95);
+            --card: oklch(1 0 0);
+            --card-foreground: oklch(0.18 0.02 95);
+            --popover: oklch(1 0 0);
+            --popover-foreground: oklch(0.18 0.02 95);
+            --primary: oklch(0.34 0.08 152);
+            --primary-foreground: oklch(0.98 0 0);
+            --secondary: oklch(0.96 0.01 98);
+            --secondary-foreground: oklch(0.2 0.02 95);
+            --muted: oklch(0.96 0.01 98);
+            --muted-foreground: oklch(0.52 0.02 95);
+            --accent: oklch(0.92 0.03 140);
+            --accent-foreground: oklch(0.22 0.05 140);
+            --destructive: oklch(0.55 0.22 27);
+            --destructive-foreground: oklch(0.98 0 0);
+            --border: oklch(0.9 0.015 95);
+            --input: oklch(0.9 0.015 95);
+            --ring: oklch(0.56 0.08 152 / 0.35);
+            --shadow: 0 12px 28px rgba(24, 20, 14, 0.12);
+            --shadow-sm: 0 6px 18px rgba(24, 20, 14, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Space Grotesk", "Segoe UI", sans-serif;
+            color: var(--foreground);
+            background: radial-gradient(circle at 12% 18%, rgba(61, 132, 99, 0.16), transparent 45%),
+                radial-gradient(circle at 88% 8%, rgba(63, 90, 122, 0.14), transparent 48%),
+                linear-gradient(145deg, #fdfcf9 0%, #f4efe5 45%, #ece1cf 100%);
+            min-height: 100vh;
+        }
+
+        main {
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 48px 24px 72px;
+        }
+
+        :root {
+            --nav-width: 1180px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        h1 {
+            font-family: "Fraunces", "Georgia", serif;
+            font-size: clamp(2.1rem, 3vw, 3rem);
+            margin: 0;
+            letter-spacing: -0.02em;
+        }
+
+        .subtitle {
+            margin-top: 8px;
+            color: var(--muted-foreground);
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 20px 22px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(61, 132, 99, 0.12), transparent 45%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        .card:hover::after {
+            opacity: 1;
+        }
+
+        .ticker-grid {
+            display: grid;
+            gap: 18px;
+        }
+
+        .ticker-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .ticker-title {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .ticker-title span {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .ticker-title small {
+            color: var(--muted-foreground);
+        }
+
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        label {
+            font-size: 0.85rem;
+            color: var(--muted-foreground);
+        }
+
+        input,
+        select {
+            width: 100%;
+            padding: 9px 12px;
+            border-radius: calc(var(--radius) - 4px);
+            border: 1px solid var(--input);
+            font-size: 0.95rem;
+            font-family: "Space Grotesk", "Segoe UI", sans-serif;
+            background: var(--card);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        input:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px var(--ring);
+        }
+
+        button {
+            padding: 9px 14px;
+            border-radius: calc(var(--radius) - 4px);
+            border: none;
+            background: var(--primary);
+            color: var(--primary-foreground);
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: var(--shadow-sm);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+        }
+
+        button.secondary {
+            background: var(--secondary);
+            color: var(--secondary-foreground);
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow);
+        }
+
+        button:active {
+            transform: translateY(0);
+            opacity: 0.9;
+        }
+
+        .actions-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .actions-row a {
+            padding: 8px 12px;
+            border-radius: calc(var(--radius) - 4px);
+            border: 1px solid var(--border);
+            background: var(--secondary);
+            color: var(--secondary-foreground);
+            text-decoration: none;
+            font-weight: 600;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .actions-row a:hover {
+            box-shadow: var(--shadow);
+        }
+
+        .ingest-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .ingest-note {
+            color: var(--muted-foreground);
+            font-size: 0.85rem;
+        }
+
+        .search-bar {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-top: 18px;
+        }
+
+        .search-bar input {
+            max-width: 260px;
+        }
+
+        .pill {
+            padding: 6px 12px;
+            border-radius: 999px;
+            background: var(--accent);
+            color: var(--accent-foreground);
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .confirm-modal {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(20, 18, 15, 0.45);
+            padding: 24px;
+            z-index: 1200;
+        }
+
+        .confirm-modal.visible {
+            display: flex;
+        }
+
+        .confirm-modal-card {
+            width: min(460px, 100%);
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+            padding: 20px;
+            display: grid;
+            gap: 12px;
+        }
+
+        .confirm-modal-title {
+            margin: 0;
+            font-size: 1.1rem;
+            color: var(--foreground);
+        }
+
+        .confirm-modal-message {
+            margin: 0;
+            color: var(--muted-foreground);
+            line-height: 1.4;
+        }
+
+        .confirm-modal-actions {
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .confirm-modal-close {
+            padding: 8px 14px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--secondary);
+            color: var(--secondary-foreground);
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .confirm-modal-close:hover {
+            box-shadow: var(--shadow-sm);
+        }
+
+        @media (max-width: 720px) {
+            header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+<body hx-ext="json-enc">
+    {% include 'fragments/navbar.html' %}
+    <main>
+        <header>
+            <div>
+                <h1>Manage Tickers</h1>
+                <div class="subtitle">Update metadata and queue time-range ingestions.</div>
+            </div>
+            <div class="pill">{{ tickers | length }} tracked</div>
+        </header>
+
+        <div class="card">
+            <div class="search-bar">
+                <label for="ticker-search">Filter</label>
+                <input id="ticker-search" type="search" placeholder="Search ticker or company" oninput="filterTickers(this.value)" />
+                <span class="ingest-note">Tip: use short symbols like RELIANCE, INFY.</span>
+            </div>
+        </div>
+
+        <section class="ticker-grid" id="ticker-grid">
+            {% for row in tickers %}
+            <div class="card ticker-card" data-search="{{ row.ticker }} {{ row.company_name or '' }} {{ row.sector or '' }} {{ row.exchange or '' }}">
+                <div class="ticker-header">
+                    <div class="ticker-title">
+                        <span>{{ row.ticker }}</span>
+                        <small>{{ row.company_name or "No company name" }}</small>
+                    </div>
+                    <div class="actions-row">
+                        <a href="/data-warehouse/tickers/{{ row.ticker }}?timeframe=1d">View</a>
+                    </div>
+                </div>
+
+                <form
+                    class="meta-grid"
+                    hx-post="/api/data-warehouse/tickers/metadata"
+                    hx-swap="none"
+                    hx-encoding="json"
+                >
+                    <input type="hidden" name="ticker" value="{{ row.ticker }}" />
+                    <div>
+                        <label>Sector</label>
+                        <input name="sector" value="{{ row.sector or '' }}" placeholder="Banking" />
+                    </div>
+                    <div>
+                        <label>Company name</label>
+                        <input name="company_name" value="{{ row.company_name or '' }}" placeholder="Reliance Industries" />
+                    </div>
+                    <div>
+                        <label>Exchange</label>
+                        <input name="exchange" value="{{ row.exchange or '' }}" placeholder="NSE" />
+                    </div>
+                    <div class="actions-row">
+                        <button type="submit">Save metadata</button>
+                    </div>
+                </form>
+
+                <form
+                    class="ingest-grid"
+                    hx-post="/api/data-warehouse/stocks/add"
+                    hx-swap="none"
+                    hx-encoding="json"
+                >
+                    <input type="hidden" name="ticker" value="{{ row.ticker }}" />
+                    <div>
+                        <label>Timeframe</label>
+                        <select name="timeframe">
+                            <option value="1m">1m</option>
+                            <option value="5m">5m</option>
+                            <option value="15m">15m</option>
+                            <option value="1h">1h</option>
+                            <option value="4h">4h</option>
+                            <option value="1d" selected>1d</option>
+                            <option value="1w">1w</option>
+                            <option value="1M">1M</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Start date</label>
+                        <input type="date" name="start_date" />
+                    </div>
+                    <div>
+                        <label>End date</label>
+                        <input type="date" name="end_date" />
+                    </div>
+                    <div class="actions-row">
+                        <button type="submit">Queue add</button>
+                        <button type="button" class="secondary" onclick="queueDefaultRange(this)">Default 1y</button>
+                    </div>
+                    <div class="ingest-note">Leave dates empty for the default 1y range.</div>
+                </form>
+            </div>
+            {% endfor %}
+        </section>
+    </main>
+    <div id="confirm-modal" class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title" aria-describedby="confirm-modal-message">
+        <div class="confirm-modal-card">
+            <h3 id="confirm-modal-title" class="confirm-modal-title">Action received</h3>
+            <p id="confirm-modal-message" class="confirm-modal-message">Your request has been sent to the backend.</p>
+            <div class="confirm-modal-actions">
+                <button id="confirm-modal-close" class="confirm-modal-close" type="button">Close</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        let confirmationTimeoutId = null;
+
+        function showConfirmation(title, message) {
+            const modal = document.getElementById('confirm-modal');
+            const titleEl = document.getElementById('confirm-modal-title');
+            const messageEl = document.getElementById('confirm-modal-message');
+            titleEl.textContent = title;
+            messageEl.textContent = message;
+            modal.classList.add('visible');
+
+            if (confirmationTimeoutId) {
+                clearTimeout(confirmationTimeoutId);
+            }
+            confirmationTimeoutId = setTimeout(() => {
+                hideConfirmation();
+            }, 3000);
+        }
+
+        function hideConfirmation() {
+            const modal = document.getElementById('confirm-modal');
+            modal.classList.remove('visible');
+        }
+
+        document.getElementById('confirm-modal-close').addEventListener('click', hideConfirmation);
+
+        document.getElementById('confirm-modal').addEventListener('click', (event) => {
+            if (event.target.id === 'confirm-modal') {
+                hideConfirmation();
+            }
+        });
+
+        document.body.addEventListener('htmx:afterRequest', (event) => {
+            const elt = event.detail && event.detail.elt;
+            if (!elt || !event.detail.xhr) {
+                return;
+            }
+            if (!elt.closest('.ticker-card')) {
+                return;
+            }
+
+            if (event.detail.successful) {
+                showConfirmation('Action received', 'Request accepted by the backend.');
+                return;
+            }
+            showConfirmation('Action failed', 'Request could not be accepted. Please retry.');
+        });
+
+        function queueDefaultRange(button) {
+            const form = button.closest('form');
+            form.querySelector('[name="start_date"]').value = '';
+            form.querySelector('[name="end_date"]').value = '';
+            form.requestSubmit();
+        }
+
+        function filterTickers(query) {
+            const lowered = query.trim().toLowerCase();
+            document.querySelectorAll('.ticker-card').forEach((card) => {
+                const haystack = card.dataset.search.toLowerCase();
+                card.style.display = haystack.includes(lowered) ? '' : 'none';
+            });
+        }
+    </script>
+</body>
+</html>
