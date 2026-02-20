@@ -204,11 +204,7 @@ def test_chunk_gaps_batches_lower_timeframes(
     )
     gaps = [(0, 20 * 24 * 60 * 60)]
     chunked = service._chunk_gaps(gaps, "1m")
-    assert chunked == [
-        (0, 7 * 24 * 60 * 60 - 1),
-        (7 * 24 * 60 * 60, 14 * 24 * 60 * 60 - 1),
-        (14 * 24 * 60 * 60, 20 * 24 * 60 * 60),
-    ]
+    assert chunked == [(0, 20 * 24 * 60 * 60)]
 
 
 def test_chunk_gaps_batches_hourly_timeframes(
@@ -222,10 +218,44 @@ def test_chunk_gaps_batches_hourly_timeframes(
     span = 40 * 24 * 60 * 60
     gaps = [(0, span)]
     chunked = service._chunk_gaps(gaps, "1h")
-    assert chunked == [
-        (0, 30 * 24 * 60 * 60 - 1),
-        (30 * 24 * 60 * 60, span),
+    assert chunked == [(0, span)]
+
+
+def test_process_add_skips_gap_detection_when_no_existing_timeframe_data(
+    repository: WarehouseRepository, job_store: JobStore
+) -> None:
+    interval = TIMEFRAME_TO_SECONDS["1m"]
+    base = 1700000000
+    end = base + 70 * 24 * 60 * 60
+    all_candles = [
+        OHLCVCandle(
+            epoch=base + idx * interval,
+            open=100.0,
+            high=101.0,
+            low=99.0,
+            close=100.5,
+            volume=1000,
+        )
+        for idx in range(5)
     ]
+    provider = FakeOpenAlgoClient(all_candles)
+    service = WarehouseService(
+        repository=repository,
+        provider=provider,
+        job_store=job_store,
+    )
+    job = job_store.create("add")
+
+    service.process_add(
+        job["job_id"],
+        AddStockRequest(
+            ticker="RELIANCE",
+            timeframe="1m",
+            range=EpochRange(start_epoch=base, end_epoch=end),
+        ),
+    )
+
+    assert provider.calls == [(base, end)]
 
 
 @pytest.mark.parametrize("timeframe", ["1d", "1w", "1M"])

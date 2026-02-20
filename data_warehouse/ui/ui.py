@@ -197,3 +197,50 @@ def ticker_view(request: Request, ticker: str, timeframe: Timeframe = "1d"):
             "available_timeframes": available_timeframes,
         },
     )
+
+
+@router.get("/data-warehouse/failed-ingestions", response_class=HTMLResponse)
+def failed_ingestions_view(request: Request):
+    service = get_service()
+    page = int(request.query_params.get("page", 1))
+    limit = int(request.query_params.get("limit", 50))
+    offset = max(page - 1, 0) * limit
+    try:
+        failures = service.list_failed_ingestions(status="failed", limit=limit, offset=offset)
+        total = service.count_failed_ingestions(status="failed")
+    except RepositoryError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    
+    total_pages = max((total + limit - 1) // limit, 1)
+    ist = ZoneInfo("Asia/Kolkata")
+    for failure in failures:
+        if failure.get("attempted_at"):
+            failure["attempted_at_ist"] = (
+                datetime.fromtimestamp(failure["attempted_at"], tz=timezone.utc)
+                .astimezone(ist)
+                .strftime("%Y-%m-%d %H:%M:%S")
+            )
+        if failure.get("requested_start_epoch"):
+            failure["start_date"] = (
+                datetime.fromtimestamp(failure["requested_start_epoch"], tz=timezone.utc)
+                .astimezone(ist)
+                .strftime("%Y-%m-%d")
+            )
+        if failure.get("requested_end_epoch"):
+            failure["end_date"] = (
+                datetime.fromtimestamp(failure["requested_end_epoch"], tz=timezone.utc)
+                .astimezone(ist)
+                .strftime("%Y-%m-%d")
+            )
+    
+    return templates.TemplateResponse(
+        "failed_ingestions.html",
+        {
+            "request": request,
+            "failures": failures,
+            "page": page,
+            "total": total,
+            "total_pages": total_pages,
+            "limit": limit,
+        },
+    )

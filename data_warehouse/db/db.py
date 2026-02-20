@@ -61,6 +61,26 @@ ON jobs (status);
 
 CREATE INDEX IF NOT EXISTS idx_jobs_type
 ON jobs (job_type);
+
+CREATE TABLE IF NOT EXISTS failed_ingestions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticker TEXT NOT NULL,
+    timeframe TEXT NOT NULL CHECK (timeframe IN ('1m','5m','15m','1h','4h','1d','1w','1M')),
+    error_reason TEXT NOT NULL,
+    requested_start_epoch INTEGER,
+    requested_end_epoch INTEGER,
+    attempted_at INTEGER NOT NULL,
+    retry_count INTEGER DEFAULT 0,
+    last_retry_at INTEGER,
+    status TEXT DEFAULT 'failed' CHECK (status IN ('failed', 'resolved', 'skipped')),
+    UNIQUE (ticker, timeframe, attempted_at)
+);
+
+CREATE INDEX IF NOT EXISTS idx_failed_ingestions_status
+ON failed_ingestions (status);
+
+CREATE INDEX IF NOT EXISTS idx_failed_ingestions_ticker_timeframe
+ON failed_ingestions (ticker, timeframe);
 """
 
 
@@ -74,5 +94,8 @@ def get_connection(db_path: str) -> sqlite3.Connection:
 
 def init_db(db_path: str) -> None:
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(db_path) as conn:
+    conn = sqlite3.connect(db_path)
+    try:
         conn.executescript(SCHEMA_SQL)
+    finally:
+        conn.close()

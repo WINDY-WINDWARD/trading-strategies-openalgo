@@ -112,6 +112,26 @@ Environment variables:
 - `OPENALGO_BASE_URL` (default `http://127.0.0.1:8800`)
 - `OPENALGO_EXCHANGE` (default `NSE`)
 
+## Logging configuration
+
+Environment variables (optional):
+- `DW_LOG_LEVEL` (default `INFO`): Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+- `DW_LOG_FILE` (default: none): If set, logs are written to this rotating file (e.g., `logs/data_warehouse.log`)
+- `DW_LOG_MAX_BYTES` (default `10485760`): Max size per log file before rotation (10MB)
+- `DW_LOG_BACKUP_COUNT` (default `5`): Number of backup log files to keep
+
+Examples:
+```bash
+# Console only, DEBUG level
+DW_LOG_LEVEL=DEBUG uvicorn data_warehouse.data_warehouse:app --reload --port 8811
+
+# Console + file logging
+DW_LOG_FILE=logs/data_warehouse.log uvicorn data_warehouse.data_warehouse:app --reload --port 8811
+
+# Debug level with 100MB file rotation, 10 backups
+DW_LOG_LEVEL=DEBUG DW_LOG_FILE=logs/data_warehouse.log DW_LOG_MAX_BYTES=104857600 DW_LOG_BACKUP_COUNT=10 uvicorn data_warehouse.data_warehouse:app --reload --port 8811
+```
+
 ## Running the app
 
 ```bash

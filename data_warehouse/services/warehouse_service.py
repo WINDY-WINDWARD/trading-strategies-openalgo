@@ -131,6 +131,46 @@ class WarehouseService:
                 )
             if selected_range is None:
                 selected_range = self.default_range()
+
+            has_existing_data = (
+                self.repository.get_last_epoch(request.ticker, request.timeframe)
+                is not None
+            )
+
+            if not has_existing_data:
+                try:
+                    candles = self.provider.fetch_ohlcv(
+                        ticker=request.ticker,
+                        timeframe=request.timeframe,
+                        start_epoch=selected_range.start_epoch,
+                        end_epoch=selected_range.end_epoch,
+                    )
+                except Exception as exc:
+                    logger.exception("Provider fetch failed")
+                    raise ProviderError("Provider fetch failed") from exc
+
+                inserted = self.repository.upsert_ohlcv_batch(
+                    ticker=request.ticker,
+                    timeframe=request.timeframe,
+                    candles=candles,
+                )
+                if inserted == 0:
+                    self.job_store.update(
+                        job_id,
+                        status="failed",
+                        error="no candles returned for requested range",
+                    )
+                    return
+
+                self.job_store.update(
+                    job_id,
+                    status="completed",
+                    inserted=inserted,
+                    gaps_filled=0,
+                    message="full range inserted",
+                )
+                return
+
             interval = TIMEFRAME_TO_SECONDS[request.timeframe]
             existing_epochs = self.repository.get_existing_epochs(
                 ticker=request.ticker,
@@ -192,9 +232,23 @@ class WarehouseService:
             )
         except (RepositoryError, ProviderError) as exc:
             logger.exception("Add job failed")
+            self.repository.create_failed_ingestion(
+                ticker=request.ticker,
+                timeframe=request.timeframe,
+                error_reason=str(exc),
+                start_epoch=selected_range.start_epoch,
+                end_epoch=selected_range.end_epoch,
+            )
             self.job_store.update(job_id, status="failed", error=str(exc))
         except Exception as exc:
             logger.exception("Add job failed")
+            self.repository.create_failed_ingestion(
+                ticker=request.ticker,
+                timeframe=request.timeframe,
+                error_reason="unexpected error",
+                start_epoch=selected_range.start_epoch,
+                end_epoch=selected_range.end_epoch,
+            )
             self.job_store.update(job_id, status="failed", error="unexpected error")
 
     def _chunk_gaps(
@@ -203,11 +257,11 @@ class WarehouseService:
         if not gaps:
             return []
         chunk_days = {
-            "1m": 7,
-            "5m": 7,
-            "15m": 7,
-            "1h": 30,
-            "4h": 30,
+            "1m": 30,
+            "5m": 30,
+            "15m": 30,
+            "1h": 120,
+            "4h": 120,
         }.get(timeframe)
         if not chunk_days:
             return gaps
@@ -394,6 +448,41 @@ class WarehouseService:
                         )
                     if selected_range is None:
                         selected_range = self.default_range()
+
+                    has_existing_data = (
+                        self.repository.get_last_epoch(
+                            add_request.ticker, add_request.timeframe
+                        )
+                        is not None
+                    )
+                    if not has_existing_data:
+                        candles = self.provider.fetch_ohlcv(
+                            ticker=add_request.ticker,
+                            timeframe=add_request.timeframe,
+                            start_epoch=selected_range.start_epoch,
+                            end_epoch=selected_range.end_epoch,
+                        )
+                        self.repository.upsert_ohlcv_batch(
+                            ticker=add_request.ticker,
+                            timeframe=add_request.timeframe,
+                            candles=candles,
+                            use_transaction=False,
+                        )
+                        progress_pct = (
+                            min(100, int(round((index / total) * 100)))
+                            if total
+                            else 100
+                        )
+                        self.job_store.update(
+                            job_id,
+                            current_ticker=add_request.ticker,
+                            current_timeframe=add_request.timeframe,
+                            total_count=total,
+                            processed_count=index,
+                            progress_pct=progress_pct,
+                        )
+                        continue
+
                     interval = TIMEFRAME_TO_SECONDS[add_request.timeframe]
                     existing_epochs = self.repository.get_existing_epochs(
                         ticker=add_request.ticker,
@@ -594,6 +683,40 @@ class WarehouseService:
 
     def get_storage_stats(self) -> dict:
         return self.repository.get_storage_stats()
+
+    def list_failed_ingestions(
+        self,
+        status: str = "failed",
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[dict]:
+        return self.repository.list_failed_ingestions(
+            status=status,
+            limit=limit,
+            offset=offset,
+        )
+
+    def count_failed_ingestions(self, status: str = "failed") -> int:
+        return self.repository.count_failed_ingestions(status=status)
+
+    def retry_failed_ingestion(
+        self, failed_id: int, ticker: str, timeframe: str, start_epoch: int, end_epoch: int
+    ) -> dict:
+        """Retry a previously failed ingestion with new parameters."""
+        job = self.job_store.create("retry_failed")
+        self.repository.increment_failed_ingestion_retry(failed_id)
+
+        try:
+            request = AddStockRequest(
+                ticker=ticker, timeframe=timeframe, range=EpochRange(start_epoch=start_epoch, end_epoch=end_epoch)
+            )
+            self.process_add(job["job_id"], request)
+            # Mark as resolved if successful
+            self.repository.mark_failed_ingestion_resolved(failed_id)
+        except Exception:
+            pass  # process_add updates job status internally
+
+        return self.job_store.get(job["job_id"]) or job
 
 
 class OpenAlgoProvider(Protocol):

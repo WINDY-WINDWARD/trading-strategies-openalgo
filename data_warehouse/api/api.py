@@ -11,6 +11,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 import logging
 
 from .routes.stocks import router as stocks_router
+from .routes.failed_ingestions import router as failed_ingestions_router
 from ..ui.ui import router as ui_router
 
 
@@ -45,6 +46,7 @@ def create_app() -> FastAPI:
         return RedirectResponse(url="/data-warehouse")
 
     app.include_router(stocks_router)
+    app.include_router(failed_ingestions_router)
     app.include_router(ui_router)
     return app
 

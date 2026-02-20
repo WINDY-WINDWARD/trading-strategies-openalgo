@@ -580,3 +580,102 @@ class WarehouseRepository:
         if data is None or data["max_epoch"] is None:
             return None
         return int(data["max_epoch"])
+
+    def create_failed_ingestion(
+        self,
+        ticker: str,
+        timeframe: str,
+        error_reason: str,
+        start_epoch: int | None = None,
+        end_epoch: int | None = None,
+    ) -> None:
+        try:
+            now = int(time.time())
+            self.connection.execute(
+                """
+                INSERT INTO failed_ingestions
+                (ticker, timeframe, error_reason, requested_start_epoch, requested_end_epoch, attempted_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (ticker, timeframe, error_reason, start_epoch, end_epoch, now),
+            )
+        except sqlite3.Error as exc:
+            logger.exception("Failed to create failed ingestion record for %s", ticker)
+            raise RepositoryError("Failed to create failed ingestion record") from exc
+
+    def list_failed_ingestions(
+        self,
+        status: str = "failed",
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[dict]:
+        try:
+            query = """
+                SELECT id, ticker, timeframe, error_reason, requested_start_epoch, requested_end_epoch,
+                       attempted_at, retry_count, last_retry_at, status
+                FROM failed_ingestions
+                WHERE status = ?
+                ORDER BY attempted_at DESC
+            """
+            params: list = [status]
+            if limit is not None:
+                query += " LIMIT ? OFFSET ?"
+                params.extend([limit, offset or 0])
+
+            rows = self.connection.execute(query, params).fetchall()
+            return [
+                {
+                    "id": row["id"],
+                    "ticker": row["ticker"],
+                    "timeframe": row["timeframe"],
+                    "error_reason": row["error_reason"],
+                    "requested_start_epoch": row["requested_start_epoch"],
+                    "requested_end_epoch": row["requested_end_epoch"],
+                    "attempted_at": row["attempted_at"],
+                    "retry_count": row["retry_count"],
+                    "last_retry_at": row["last_retry_at"],
+                    "status": row["status"],
+                }
+                for row in rows
+            ]
+        except sqlite3.Error as exc:
+            logger.exception("Failed to list failed ingestions")
+            raise RepositoryError("Failed to list failed ingestions") from exc
+
+    def count_failed_ingestions(self, status: str = "failed") -> int:
+        try:
+            row = self.connection.execute(
+                "SELECT COUNT(1) AS total FROM failed_ingestions WHERE status = ?",
+                (status,),
+            ).fetchone()
+        except sqlite3.Error as exc:
+            logger.exception("Failed to count failed ingestions")
+            raise RepositoryError("Failed to count failed ingestions") from exc
+        if row is None:
+            return 0
+        return int(row["total"])
+
+    def mark_failed_ingestion_resolved(self, failed_id: int) -> None:
+        try:
+            self.connection.execute(
+                "UPDATE failed_ingestions SET status = 'resolved' WHERE id = ?",
+                (failed_id,),
+            )
+        except sqlite3.Error as exc:
+            logger.exception("Failed to mark ingestion as resolved")
+            raise RepositoryError("Failed to mark ingestion as resolved") from exc
+
+    def increment_failed_ingestion_retry(self, failed_id: int) -> None:
+        try:
+            now = int(time.time())
+            self.connection.execute(
+                """
+                UPDATE failed_ingestions
+                SET retry_count = retry_count + 1, last_retry_at = ?
+                WHERE id = ?
+                """,
+                (now, failed_id),
+            )
+        except sqlite3.Error as exc:
+            logger.exception("Failed to increment retry count")
+            raise RepositoryError("Failed to increment retry count") from exc
