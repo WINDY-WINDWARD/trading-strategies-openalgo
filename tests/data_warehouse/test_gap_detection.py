@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from data_warehouse.core.gap_detection import detect_missing_ranges
 
 
@@ -32,3 +34,17 @@ def test_detect_missing_ranges_when_complete():
     )
 
     assert missing == []
+
+
+def test_detect_missing_ranges_skips_weekend_slots() -> None:
+    friday = int(datetime(2026, 2, 20, tzinfo=timezone.utc).timestamp())
+    monday = int(datetime(2026, 2, 23, tzinfo=timezone.utc).timestamp())
+
+    missing = detect_missing_ranges(
+        start_epoch=friday,
+        end_epoch=monday,
+        existing_epochs=[friday],
+        interval_seconds=24 * 60 * 60,
+    )
+
+    assert missing == [(monday, monday)]

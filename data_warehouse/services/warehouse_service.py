@@ -399,14 +399,12 @@ class WarehouseService:
         limit: int,
         offset: int,
     ) -> dict:
-        try:
-            exists = self.repository.ticker_exists(request.ticker)
-        except RepositoryError as exc:
-            logger.exception("Ticker lookup failed")
-            raise RepositoryError("Ticker lookup failed") from exc
-        if not exists:
-            raise ValueError("ticker not found")
         selected_range = request.range or self.default_range()
+        self._hydrate_missing_data(
+            ticker=request.ticker,
+            timeframe=request.timeframe,
+            selected_range=selected_range,
+        )
         candles = self.repository.get_ohlcv_page(
             ticker=request.ticker,
             timeframe=request.timeframe,
@@ -441,6 +439,48 @@ class WarehouseService:
             "limit": limit,
             "offset": offset,
         }
+
+    def _hydrate_missing_data(
+        self,
+        ticker: str,
+        timeframe: str,
+        selected_range: EpochRange,
+    ) -> None:
+        try:
+            current_count = self.repository.get_ohlcv_count(
+                ticker=ticker,
+                timeframe=timeframe,
+                start_epoch=selected_range.start_epoch,
+                end_epoch=selected_range.end_epoch,
+            )
+        except RepositoryError as exc:
+            logger.exception("Ticker lookup failed")
+            raise RepositoryError("Ticker lookup failed") from exc
+
+        if current_count > 0:
+            return
+
+        try:
+            candles = self.provider.fetch_ohlcv(
+                ticker=ticker,
+                timeframe=timeframe,
+                start_epoch=selected_range.start_epoch,
+                end_epoch=selected_range.end_epoch,
+            )
+        except Exception:
+            logger.exception(
+                "Auto-fetch failed for %s %s", ticker, timeframe
+            )
+            return
+
+        if not candles:
+            return
+
+        self.repository.upsert_ohlcv_batch(
+            ticker=ticker,
+            timeframe=timeframe,
+            candles=candles,
+        )
 
     def process_delete(self, job_id: str, request: DeleteStockRequest) -> None:
         try:

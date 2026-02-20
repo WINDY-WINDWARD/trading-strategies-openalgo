@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 
 TIMEFRAME_TO_SECONDS = {
     "1m": 60,
@@ -48,33 +50,44 @@ def detect_missing_ranges(
     list[tuple[int, int]]
         A list of `(missing_start, missing_end)` tuples, each representing an
         inclusive range of epochs where data points are missing at the
-        expected cadence. If no gaps are found, the list is empty. If
-        `existing_epochs` is empty and `end_epoch >= start_epoch`, a single
-        range `(start_epoch, end_epoch)` is returned.
+        expected cadence. Weekend slots (Saturday and Sunday, UTC) are ignored
+        and never returned as missing ranges. If no gaps are found, the list
+        is empty.
     """
-    if end_epoch < start_epoch:
+    if end_epoch < start_epoch or interval_seconds <= 0:
         return []
 
-    if not existing_epochs:
-        return [(start_epoch, end_epoch)]
-
-    existing_epochs = sorted(existing_epochs)
+    existing_epoch_set = {
+        epoch
+        for epoch in existing_epochs
+        if start_epoch <= epoch <= end_epoch and not _is_weekend_epoch(epoch)
+    }
     ranges: list[tuple[int, int]] = []
-    current = start_epoch
+    gap_start: int | None = None
+    previous_missing: int | None = None
 
-    for epoch in existing_epochs:
-        if epoch < current:
-            continue
-        if epoch > end_epoch:
-            break
+    epoch = start_epoch
+    while epoch <= end_epoch:
+        if not _is_weekend_epoch(epoch) and epoch not in existing_epoch_set:
+            if gap_start is None:
+                gap_start = epoch
+            elif previous_missing is not None and epoch != previous_missing + interval_seconds:
+                ranges.append((gap_start, previous_missing))
+                gap_start = epoch
+            previous_missing = epoch
+        elif gap_start is not None and previous_missing is not None:
+            ranges.append((gap_start, previous_missing))
+            gap_start = None
+            previous_missing = None
 
-        if epoch > current:
-            gap_end = epoch - interval_seconds
-            if current <= gap_end:
-                ranges.append((current, gap_end))
-        current = epoch + interval_seconds
+        epoch += interval_seconds
 
-    if current <= end_epoch:
-        ranges.append((current, end_epoch))
+    if gap_start is not None and previous_missing is not None:
+        ranges.append((gap_start, previous_missing))
 
     return ranges
+
+
+def _is_weekend_epoch(epoch: int) -> bool:
+    weekday = datetime.fromtimestamp(epoch, tz=timezone.utc).weekday()
+    return weekday >= 5

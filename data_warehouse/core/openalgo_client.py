@@ -27,6 +27,10 @@ class OpenAlgoClient:
         base_url: str | None = None,
         exchange: str | None = None,
         min_request_interval: float = 0.1,
+        batch_request_size: int = 1,
+        batch_pause_seconds: float = 5.0,
+        max_retries: int = 3,
+        backoff_base_seconds: float = 1.0,
     ):
         self.api_key = api_key or os.getenv("OPENALGO_API_KEY")
         self.base_url = base_url or os.getenv(
@@ -34,7 +38,12 @@ class OpenAlgoClient:
         )
         self.exchange = exchange or os.getenv("OPENALGO_EXCHANGE", "NSE")
         self.min_request_interval = min_request_interval
+        self.batch_request_size = max(1, batch_request_size)
+        self.batch_pause_seconds = max(0.0, batch_pause_seconds)
+        self.max_retries = max(1, max_retries)
+        self.backoff_base_seconds = max(0.1, backoff_base_seconds)
         self.last_request_time = 0.0
+        self.request_count = 0
         self._logger = logging.getLogger(__name__)
         self.client = None
 
@@ -55,6 +64,14 @@ class OpenAlgoClient:
         elapsed = current_time - self.last_request_time
         if elapsed < self.min_request_interval:
             time.sleep(self.min_request_interval - elapsed)
+
+        if (
+            self.request_count > 0
+            and self.request_count % self.batch_request_size == 0
+            and self.batch_pause_seconds > 0
+        ):
+            time.sleep(self.batch_pause_seconds)
+
         self.last_request_time = time.time()
 
     def fetch_ohlcv(
@@ -81,18 +98,36 @@ class OpenAlgoClient:
 
         start_dt = datetime.utcfromtimestamp(start_epoch)
         end_dt = datetime.utcfromtimestamp(end_epoch)
-        self._rate_limit()
-        try:
-            response = self.client.history(
-                symbol=ticker,
-                exchange=self.exchange,
-                interval=interval,
-                start_date=start_dt.strftime("%Y-%m-%d"),
-                end_date=end_dt.strftime("%Y-%m-%d"),
-            )
-        except Exception as exc:  # pragma: no cover - depends on provider
-            self._logger.exception("OpenAlgo history request failed")
-            raise RuntimeError("OpenAlgo history request failed") from exc
+        response = None
+        for attempt in range(1, self.max_retries + 1):
+            self._rate_limit()
+            try:
+                response = self.client.history(
+                    symbol=ticker,
+                    exchange=self.exchange,
+                    interval=interval,
+                    start_date=start_dt.strftime("%Y-%m-%d"),
+                    end_date=end_dt.strftime("%Y-%m-%d"),
+                )
+                break
+            except Exception as exc:  # pragma: no cover - depends on provider
+                if attempt == self.max_retries:
+                    self._logger.exception("OpenAlgo history request failed")
+                    raise RuntimeError("OpenAlgo history request failed") from exc
+
+                backoff_seconds = self.backoff_base_seconds * (2 ** (attempt - 1))
+                self._logger.warning(
+                    "OpenAlgo history request failed (attempt %s/%s). Retrying in %.2fs",
+                    attempt,
+                    self.max_retries,
+                    backoff_seconds,
+                )
+                time.sleep(backoff_seconds)
+            finally:
+                self.request_count += 1
+
+        if response is None:
+            return []
 
         if not isinstance(response, pd.DataFrame) or response.empty:
             self._logger.warning(
