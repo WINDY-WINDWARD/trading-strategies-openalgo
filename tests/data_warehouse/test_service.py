@@ -11,6 +11,7 @@ from data_warehouse.schemas.requests import (
     BulkAddRequest,
     BulkAddRow,
     EpochRange,
+    GetStockRequest,
     Timeframe,
     UpdateStockRequest,
 )
@@ -315,3 +316,81 @@ def test_process_bulk_add_tracks_failures(
     assert data is not None
     assert data["status"] == "completed"
     assert data["failure_count"] == 0
+
+
+def test_get_stock_data_page_fetches_and_persists_when_ticker_missing(
+    repository: WarehouseRepository, job_store: JobStore
+) -> None:
+    candle = OHLCVCandle(
+        epoch=1700000000,
+        open=100.0,
+        high=110.0,
+        low=90.0,
+        close=105.0,
+        volume=1000,
+    )
+    provider = FakeOpenAlgoClient([candle])
+    service = WarehouseService(
+        repository=repository,
+        provider=provider,
+        job_store=job_store,
+    )
+
+    payload = service.get_stock_data_page(
+        request=GetStockRequest(
+            ticker="RELIANCE",
+            timeframe="1d",
+            range=EpochRange(start_epoch=1700000000, end_epoch=1700000000),
+        ),
+        limit=50,
+        offset=0,
+    )
+
+    assert provider.calls == [(1700000000, 1700000000)]
+    assert payload["ticker"] == "RELIANCE"
+    assert payload["timeframe"] == "1d"
+    assert len(payload["candles"]) == 1
+    assert repository.ticker_exists("RELIANCE")
+
+
+def test_get_stock_data_page_fetches_when_timeframe_data_missing(
+    repository: WarehouseRepository, job_store: JobStore
+) -> None:
+    existing_daily = OHLCVCandle(
+        epoch=1700000000,
+        open=100.0,
+        high=110.0,
+        low=90.0,
+        close=105.0,
+        volume=1000,
+    )
+    repository.upsert_ohlcv_batch("RELIANCE", "1d", [existing_daily])
+
+    hourly_candle = OHLCVCandle(
+        epoch=1700003600,
+        open=101.0,
+        high=111.0,
+        low=91.0,
+        close=106.0,
+        volume=1100,
+    )
+    provider = FakeOpenAlgoClient([hourly_candle])
+    service = WarehouseService(
+        repository=repository,
+        provider=provider,
+        job_store=job_store,
+    )
+
+    payload = service.get_stock_data_page(
+        request=GetStockRequest(
+            ticker="RELIANCE",
+            timeframe="1h",
+            range=EpochRange(start_epoch=1700003600, end_epoch=1700003600),
+        ),
+        limit=50,
+        offset=0,
+    )
+
+    assert provider.calls == [(1700003600, 1700003600)]
+    assert payload["timeframe"] == "1h"
+    assert len(payload["candles"]) == 1
