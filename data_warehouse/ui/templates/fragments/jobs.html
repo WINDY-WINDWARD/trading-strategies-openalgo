@@ -33,6 +33,12 @@
                 {% if job.gap_count is defined %}
                 <span>Gaps: {{ job.gap_count }}</span>
                 {% endif %}
+                {% if job.common_gap_count is defined %}
+                <span>Common gaps: {{ job.common_gap_count }}</span>
+                {% endif %}
+                {% if job.excluded_common_gap_count is defined %}
+                <span>Excluded common: {{ job.excluded_common_gap_count }}</span>
+                {% endif %}
                 {% if job.fetched_count is defined %}
                 <span>Fetched: {{ job.fetched_count }}</span>
                 {% endif %}

@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import datetime, timezone
 
 import pytest
 
@@ -12,6 +13,7 @@ from data_warehouse.schemas.requests import (
     BulkAddRow,
     EpochRange,
     GetStockRequest,
+    GapFillRequest,
     Timeframe,
     UpdateStockRequest,
 )
@@ -424,3 +426,67 @@ def test_get_stock_data_page_fetches_when_timeframe_data_missing(
     assert provider.calls == [(1700003600, 1700003600)]
     assert payload["timeframe"] == "1h"
     assert len(payload["candles"]) == 1
+
+
+def test_gap_fill_excludes_common_gaps(
+    repository: WarehouseRepository, job_store: JobStore
+) -> None:
+    interval = TIMEFRAME_TO_SECONDS["1d"]
+    base = int(datetime(2026, 2, 16, tzinfo=timezone.utc).timestamp())
+    epochs = [base + idx * interval for idx in range(5)]
+
+    candles = [
+        OHLCVCandle(
+            epoch=epoch,
+            open=100.0,
+            high=110.0,
+            low=90.0,
+            close=105.0,
+            volume=1000,
+        )
+        for epoch in epochs
+    ]
+    provider = FakeOpenAlgoClient(candles)
+    service = WarehouseService(
+        repository=repository,
+        provider=provider,
+        job_store=job_store,
+    )
+
+    for ticker in ("AAA", "BBB", "CCC"):
+        existing_epochs = [epochs[0], epochs[4]]
+        if ticker == "BBB":
+            existing_epochs.append(epochs[1])
+        repository.upsert_ohlcv_batch(
+            ticker,
+            "1d",
+            [
+                OHLCVCandle(
+                    epoch=epoch,
+                    open=100.0,
+                    high=110.0,
+                    low=90.0,
+                    close=105.0,
+                    volume=1000,
+                )
+                for epoch in existing_epochs
+            ],
+        )
+
+    job = job_store.create("gap_fill")
+    service.process_gap_fill(
+        job["job_id"],
+        GapFillRequest(
+            timeframe="1d",
+            range=EpochRange(start_epoch=epochs[0], end_epoch=epochs[4]),
+        ),
+    )
+
+    job_snapshot = job_store.get(job["job_id"])
+    assert job_snapshot is not None
+    assert job_snapshot["common_gap_count"] == 1
+
+    expected_call = (epochs[1], epochs[2] - 1)
+    assert provider.calls == [expected_call, expected_call]
+    assert repository.get_ohlcv("AAA", "1d", epochs[1], epochs[1])
+    assert repository.get_ohlcv("CCC", "1d", epochs[1], epochs[1])

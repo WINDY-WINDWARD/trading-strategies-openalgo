@@ -23,6 +23,7 @@ from ..schemas.requests import (
     GapFillRequest,
     GetStockRequest,
     Timeframe,
+    UpdateAllRequest,
     UpdateStockRequest,
 )
 from typing import cast
@@ -108,6 +109,9 @@ class WarehouseService:
 
     def enqueue_update(self, request: UpdateStockRequest) -> dict:
         return self.job_store.create("update")
+
+    def enqueue_update_all(self, request: UpdateAllRequest) -> dict:
+        return self.job_store.create("update_all")
 
     def enqueue_bulk_add(self, request: BulkAddRequest) -> dict:
         return self.job_store.create("bulk_add")
@@ -308,6 +312,57 @@ class WarehouseService:
                 current = chunk_end + 1
         return chunked
 
+    def _intersect_ranges(
+        self,
+        primary: list[tuple[int, int]],
+        secondary: list[tuple[int, int]],
+    ) -> list[tuple[int, int]]:
+        intersections: list[tuple[int, int]] = []
+        i = 0
+        j = 0
+        while i < len(primary) and j < len(secondary):
+            start_a, end_a = primary[i]
+            start_b, end_b = secondary[j]
+            start = max(start_a, start_b)
+            end = min(end_a, end_b)
+            if start <= end:
+                intersections.append((start, end))
+            if end_a < end_b:
+                i += 1
+            else:
+                j += 1
+        return intersections
+
+    def _subtract_ranges(
+        self,
+        source: list[tuple[int, int]],
+        exclusions: list[tuple[int, int]],
+    ) -> list[tuple[int, int]]:
+        if not source or not exclusions:
+            return source
+        remaining: list[tuple[int, int]] = []
+        exclusion_index = 0
+        for start, end in source:
+            current_start = start
+            while (
+                exclusion_index < len(exclusions)
+                and exclusions[exclusion_index][1] < current_start
+            ):
+                exclusion_index += 1
+            scan_index = exclusion_index
+            while scan_index < len(exclusions) and exclusions[scan_index][0] <= end:
+                exclude_start, exclude_end = exclusions[scan_index]
+                if exclude_start > current_start:
+                    remaining.append((current_start, min(end, exclude_start - 1)))
+                if exclude_end >= end:
+                    current_start = end + 1
+                    break
+                current_start = exclude_end + 1
+                scan_index += 1
+            if current_start <= end:
+                remaining.append((current_start, end))
+        return remaining
+
     def process_update(self, job_id: str, request: UpdateStockRequest) -> None:
         try:
             self.job_store.update(job_id, status="running")
@@ -348,6 +403,49 @@ class WarehouseService:
             logger.exception("Update job failed")
             self.job_store.update(job_id, status="failed", error="unexpected error")
 
+    def process_update_all(self, job_id: str, request: UpdateAllRequest) -> None:
+        try:
+            tickers = self.repository.list_tickers()
+            total = len(tickers)
+            self.job_store.update(
+                job_id,
+                status="running",
+                total_count=total,
+                processed_count=0,
+                progress_pct=0,
+                current_timeframe=request.timeframe,
+            )
+
+            for index, ticker in enumerate(tickers, start=1):
+                self.job_store.update(
+                    job_id,
+                    current_ticker=ticker,
+                    current_timeframe=request.timeframe,
+                    processed_count=index - 1,
+                    progress_pct=min(100, int(round(((index - 1) / total) * 100)))
+                    if total
+                    else 0,
+                )
+                update_request = UpdateStockRequest(
+                    ticker=ticker, timeframe=request.timeframe
+                )
+                update_job = self.job_store.create("update")
+                self.process_update(update_job["job_id"], update_request)
+                time.sleep(0.2)
+
+            self.job_store.update(
+                job_id,
+                status="completed",
+                processed_count=total,
+                progress_pct=100,
+            )
+        except (RepositoryError, ProviderError) as exc:
+            logger.exception("Update all job failed")
+            self.job_store.update(job_id, status="failed", error=str(exc))
+        except Exception:
+            logger.exception("Update all job failed")
+            self.job_store.update(job_id, status="failed", error="unexpected error")
+
     def process_bulk_add(self, job_id: str, request: BulkAddRequest) -> None:
         try:
             total = len(request.rows)
@@ -357,8 +455,6 @@ class WarehouseService:
                 total_count=total,
                 processed_count=0,
                 progress_pct=0,
-                selected_range=selected_range.model_dump(),
-                current_timeframe=request.timeframe,
             )
             successes = 0
             failures: list[dict] = []
@@ -597,19 +693,15 @@ class WarehouseService:
                 total_count=total,
                 processed_count=0,
                 progress_pct=0,
+                selected_range=selected_range.model_dump(),
+                current_timeframe=request.timeframe,
             )
 
             interval_seconds = TIMEFRAME_TO_SECONDS[request.timeframe]
-            for index, ticker in enumerate(tickers, start=1):
-                self.job_store.update(
-                    job_id,
-                    current_ticker=ticker,
-                    current_timeframe=request.timeframe,
-                    processed_count=index - 1,
-                    progress_pct=min(100, int(round(((index - 1) / total) * 100)))
-                    if total
-                    else 0,
-                )
+            gap_cache: dict[str, list[tuple[int, int]]] = {}
+            common_gaps: list[tuple[int, int]] | None = None
+
+            for ticker in tickers:
                 try:
                     existing_epochs = self.repository.get_existing_epochs(
                         ticker=ticker,
@@ -626,19 +718,49 @@ class WarehouseService:
                     existing_epochs=existing_epochs,
                     interval_seconds=interval_seconds,
                 )
-                if request.timeframe in {"1d", "1w", "1M"} and len(gaps) > 1:
-                    gaps = [(selected_range.start_epoch, selected_range.end_epoch)]
-                elif gaps:
-                    gaps = self._chunk_gaps(gaps, request.timeframe)
+                gap_cache[ticker] = gaps
+                if common_gaps is None:
+                    common_gaps = list(gaps)
+                else:
+                    common_gaps = self._intersect_ranges(common_gaps, gaps)
+
+            common_gaps = common_gaps or []
+            self.job_store.update(
+                job_id,
+                common_gap_count=len(common_gaps),
+                message="common gaps excluded" if common_gaps else "no common gaps",
+            )
+
+            for index, ticker in enumerate(tickers, start=1):
+                self.job_store.update(
+                    job_id,
+                    current_ticker=ticker,
+                    current_timeframe=request.timeframe,
+                    processed_count=index - 1,
+                    progress_pct=min(100, int(round(((index - 1) / total) * 100)))
+                    if total
+                    else 0,
+                )
+
+                gaps = gap_cache.get(ticker, [])
+                excluded = (
+                    self._intersect_ranges(gaps, common_gaps) if common_gaps else []
+                )
+                specific_gaps = (
+                    self._subtract_ranges(gaps, common_gaps) if common_gaps else gaps
+                )
+                if specific_gaps:
+                    specific_gaps = self._chunk_gaps(specific_gaps, request.timeframe)
 
                 self.job_store.update(
                     job_id,
-                    gap_count=len(gaps),
-                    message="gap scan complete" if gaps else "no gaps found",
+                    gap_count=len(specific_gaps),
+                    excluded_common_gap_count=len(excluded),
+                    message="gap scan complete" if specific_gaps else "no gaps found",
                 )
 
-                if gaps:
-                    for gap_start, gap_end in gaps:
+                if specific_gaps:
+                    for gap_start, gap_end in specific_gaps:
                         try:
                             candles = self.provider.fetch_ohlcv(
                                 ticker=ticker,
@@ -733,6 +855,24 @@ class WarehouseService:
             "offset": offset,
         }
 
+    def get_ohlcv_range(
+        self,
+        ticker: str,
+        timeframe: str,
+        selected_range: EpochRange,
+    ) -> list[dict]:
+        self._hydrate_missing_data(
+            ticker=ticker,
+            timeframe=timeframe,
+            selected_range=selected_range,
+        )
+        return self.repository.get_ohlcv(
+            ticker=ticker,
+            timeframe=timeframe,
+            start_epoch=selected_range.start_epoch,
+            end_epoch=selected_range.end_epoch,
+        )
+
     def _hydrate_missing_data(
         self,
         ticker: str,
@@ -817,6 +957,17 @@ class WarehouseService:
 
     def list_timeframes_for_ticker(self, ticker: str) -> list[str]:
         return self.repository.list_timeframes_for_ticker(ticker)
+
+    def list_tickers_with_timeframes(self) -> list[dict]:
+        payload: list[dict] = []
+        for ticker in self.repository.list_tickers():
+            payload.append(
+                {
+                    "ticker": ticker,
+                    "timeframes": self.repository.list_timeframes_for_ticker(ticker),
+                }
+            )
+        return payload
 
     def list_ticker_metadata(self) -> list[dict]:
         return self.repository.list_ticker_metadata()

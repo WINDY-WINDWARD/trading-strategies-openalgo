@@ -319,6 +319,81 @@
             <div class="pill">{{ tickers | length }} tracked</div>
         </header>
 
+        <section class="card" style="margin-bottom: 28px;">
+            <div class="ticker-header">
+                <div class="ticker-title">
+                    <span>Global update</span>
+                    <small>Update all tickers from their latest stored candle to now.</small>
+                </div>
+            </div>
+            <form
+                class="ingest-grid"
+                hx-post="/api/data-warehouse/stocks/update-all"
+                hx-swap="none"
+                hx-encoding="json"
+            >
+                <div>
+                    <label>Timeframe</label>
+                    <select name="timeframe">
+                        <option value="1m">1m</option>
+                        <option value="5m">5m</option>
+                        <option value="15m">15m</option>
+                        <option value="1h">1h</option>
+                        <option value="4h">4h</option>
+                        <option value="1d" selected>1d</option>
+                        <option value="1w">1w</option>
+                        <option value="1M">1M</option>
+                    </select>
+                </div>
+                <div class="actions-row">
+                    <button type="submit">Update all</button>
+                </div>
+                <div class="ingest-note">Runs update jobs per ticker using the latest stored candle as the start.</div>
+            </form>
+        </section>
+
+        <section class="card" style="margin-bottom: 28px;">
+            <div class="ticker-header">
+                <div class="ticker-title">
+                    <span>Global gap fill</span>
+                    <small>Scan all tickers for missing data and backfill.</small>
+                </div>
+            </div>
+            <form
+                class="ingest-grid"
+                hx-post="/api/data-warehouse/stocks/gap-fill"
+                hx-swap="none"
+                hx-encoding="json"
+            >
+                <div>
+                    <label>Timeframe</label>
+                    <select name="timeframe">
+                        <option value="1m">1m</option>
+                        <option value="5m">5m</option>
+                        <option value="15m">15m</option>
+                        <option value="1h">1h</option>
+                        <option value="4h">4h</option>
+                        <option value="1d" selected>1d</option>
+                        <option value="1w">1w</option>
+                        <option value="1M">1M</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Start date</label>
+                    <input type="date" name="start_date" />
+                </div>
+                <div>
+                    <label>End date</label>
+                    <input type="date" name="end_date" />
+                </div>
+                <div class="actions-row">
+                    <button type="submit">Start gap fill</button>
+                    <button type="button" class="secondary" onclick="queueDefaultRange(this)">Default 1y</button>
+                </div>
+                <div class="ingest-note">Uses a small delay between provider calls to avoid rate limits.</div>
+            </form>
+        </section>
+
         <div class="card">
             <div class="search-bar">
                 <label for="ticker-search">Filter</label>
@@ -401,47 +476,6 @@
             </div>
             {% endfor %}
         </section>
-        <section class="card" style="margin-top: 28px;">
-            <div class="ticker-header">
-                <div class="ticker-title">
-                    <span>Global gap fill</span>
-                    <small>Scan all tickers for missing data and backfill.</small>
-                </div>
-            </div>
-            <form
-                class="ingest-grid"
-                hx-post="/api/data-warehouse/stocks/gap-fill"
-                hx-swap="none"
-                hx-encoding="json"
-            >
-                <div>
-                    <label>Timeframe</label>
-                    <select name="timeframe">
-                        <option value="1m">1m</option>
-                        <option value="5m">5m</option>
-                        <option value="15m">15m</option>
-                        <option value="1h">1h</option>
-                        <option value="4h">4h</option>
-                        <option value="1d" selected>1d</option>
-                        <option value="1w">1w</option>
-                        <option value="1M">1M</option>
-                    </select>
-                </div>
-                <div>
-                    <label>Start date</label>
-                    <input type="date" name="start_date" />
-                </div>
-                <div>
-                    <label>End date</label>
-                    <input type="date" name="end_date" />
-                </div>
-                <div class="actions-row">
-                    <button type="submit">Start gap fill</button>
-                    <button type="button" class="secondary" onclick="queueDefaultRange(this)">Default 1y</button>
-                </div>
-                <div class="ingest-note">Uses a small delay between provider calls to avoid rate limits.</div>
-            </form>
-        </section>
     </main>
     <div id="confirm-modal" class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title" aria-describedby="confirm-modal-message">
         <div class="confirm-modal-card">
@@ -489,7 +523,8 @@
             if (!elt || !event.detail.xhr) {
                 return;
             }
-            if (!elt.closest('.ticker-card')) {
+            const isTarget = Boolean(elt.closest('.ticker-card') || elt.closest('.card'));
+            if (!isTarget) {
                 return;
             }
 

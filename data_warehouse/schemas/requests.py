@@ -67,6 +67,10 @@ class UpdateStockRequest(BaseModel):
         return value.strip().upper()
 
 
+class UpdateAllRequest(BaseModel):
+    timeframe: Timeframe = "1d"
+
+
 class UpdateTickerMetadataRequest(BaseModel):
     ticker: str = Field(..., min_length=1)
     sector: str | None = None

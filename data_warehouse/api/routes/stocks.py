@@ -12,6 +12,7 @@ from ...schemas.requests import (
     DeleteStockRequest,
     GapFillRequest,
     GetStockRequest,
+    UpdateAllRequest,
     UpdateTickerMetadataRequest,
     UpdateStockRequest,
 )
@@ -60,6 +61,20 @@ def update_stock_data(
     try:
         job = service.enqueue_update(request)
         background_tasks.add_task(service.process_update, job["job_id"], request)
+        return JSONResponse(status_code=202, content=job)
+    except RepositoryError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/stocks/update-all")
+def update_all_stocks(
+    request: UpdateAllRequest,
+    background_tasks: BackgroundTasks,
+    service: WarehouseService = Depends(get_service),
+):
+    try:
+        job = service.enqueue_update_all(request)
+        background_tasks.add_task(service.process_update_all, job["job_id"], request)
         return JSONResponse(status_code=202, content=job)
     except RepositoryError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
