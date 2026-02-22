@@ -38,24 +38,99 @@ Epoch storage:
 - Stored as raw epoch seconds.
 - Converted to IST for UI/API display.
 
-## API endpoints
+## Swagger / OpenAPI quick guide
 
-Base prefix: `/api/data-warehouse`
+Once the app is running, open:
+- Swagger UI: `http://127.0.0.1:8811/docs`
+- ReDoc: `http://127.0.0.1:8811/redoc`
 
-Stock data:
-- `POST /stocks/add` (async job)
-- `POST /stocks/update` (async job)
-- `POST /stocks/delete` (async job)
-- `POST /stocks/get` (paged)
-- `GET /stocks/export` (CSV payload)
+Swagger groups endpoints by tags:
+- `data-warehouse`: ingest, retrieval, metadata, jobs.
+- `northbound`: read-oriented endpoints for OHLCV consumers.
+- `failed-ingestions`: inspect and retry failed ingestions.
 
-Bulk ingest:
-- `POST /stocks/add-bulk` (JSON rows, async)
-- `POST /stocks/add-bulk-csv` (CSV upload, async, transactional)
+### Base paths
 
-Jobs:
-- `GET /jobs/{job_id}`
-- `GET /jobs?status=&job_type=&limit=&offset=`
+- API base prefix: `/api/data-warehouse`
+- UI pages: `/data-warehouse...` (not part of Swagger API operations)
+
+### What each API does
+
+#### data-warehouse tag
+
+- `POST /api/data-warehouse/stocks/add`
+	- Queue a new ingestion job for a ticker/timeframe/range.
+	- Returns `202` with a `job_id`.
+
+- `POST /api/data-warehouse/stocks/update`
+	- Queue incremental update for an existing ticker/timeframe.
+	- Returns `202` with job details.
+
+- `POST /api/data-warehouse/stocks/update-all`
+	- Queue updates for all tracked ticker/timeframe entries.
+	- Use for periodic refreshes.
+
+- `POST /api/data-warehouse/stocks/delete`
+	- Queue deletion of stored candle data by criteria.
+	- Returns `202` when accepted.
+
+- `POST /api/data-warehouse/stocks/get`
+	- Fetch paginated candles for a ticker/timeframe/range.
+	- Query params: `limit`, `offset`.
+
+- `GET /api/data-warehouse/stocks/export`
+	- Export candles as CSV content in JSON payload (`{"csv": "..."}`).
+	- Uses same filters as stock retrieval.
+
+- `POST /api/data-warehouse/stocks/add-bulk`
+	- Queue bulk ingestion from JSON rows.
+	- Returns one async job.
+
+- `POST /api/data-warehouse/stocks/add-bulk-csv`
+	- Upload CSV file and queue ingestion.
+	- `multipart/form-data` with `file`.
+
+- `POST /api/data-warehouse/stocks/gap-fill`
+	- Queue gap-fill operation to backfill missing periods.
+	- Returns `202` job payload.
+
+- `POST /api/data-warehouse/tickers/metadata`
+	- Update ticker metadata (`sector`, `company_name`, `exchange`).
+	- Synchronous update, returns `200`.
+
+- `GET /api/data-warehouse/jobs/{job_id}`
+	- Get one job status (`queued`, `running`, `completed`, `failed`).
+
+- `GET /api/data-warehouse/jobs`
+	- List jobs with optional filters: `status`, `job_type`, `limit`, `offset`.
+
+#### northbound tag
+
+- `GET /api/data-warehouse/ohlcv`
+	- Consumer-friendly OHLCV feed by `ticker` and `timeframe`.
+	- Optional `timerange` supports `dd-mm-yyyy` dates.
+
+- `GET /api/data-warehouse/tickers`
+	- List available tickers and timeframes.
+	- Useful for discovery before requesting OHLCV.
+
+#### failed-ingestions tag
+
+- `GET /api/data-warehouse/failed-ingestions`
+	- List failed (or filtered) ingestion records.
+	- Supports `status`, `limit`, and `offset`.
+
+- `POST /api/data-warehouse/failed-ingestions/{failed_id}/retry`
+	- Retry a specific failed ingestion with new `start_epoch` and `end_epoch`.
+	- Returns `202` with new retry job payload.
+
+### Swagger usage workflow
+
+1. Open `/docs` and expand a tag.
+2. Click an endpoint and select **Try it out**.
+3. Fill body/query/path fields shown by schema.
+4. Execute and inspect response + status code.
+5. For async endpoints (`202`), poll `/api/data-warehouse/jobs/{job_id}`.
 
 ## UI
 
@@ -140,6 +215,8 @@ conda run -n trade uvicorn data_warehouse.data_warehouse:app --reload --port 881
 
 Open:
 - `http://127.0.0.1:8811/` (redirects to `/data-warehouse`)
+- `http://127.0.0.1:8811/docs` (Swagger UI)
+- `http://127.0.0.1:8811/redoc` (ReDoc)
 
 ## Testing
 
