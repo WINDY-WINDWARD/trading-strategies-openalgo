@@ -26,6 +26,7 @@ class AddStockRequest(BaseModel):
     range: EpochRange | None = None
     start_date: date | None = None
     end_date: date | None = None
+    is_index: bool = False
 
     @field_validator("ticker")
     @classmethod
@@ -60,6 +61,7 @@ class DeleteStockRequest(BaseModel):
 class UpdateStockRequest(BaseModel):
     ticker: str = Field(..., min_length=1)
     timeframe: Timeframe = "1d"
+    is_index: bool = False
 
     @field_validator("ticker")
     @classmethod
@@ -108,6 +110,7 @@ class BulkAddRow(BaseModel):
     range: EpochRange | None = None
     start_date: date | None = None
     end_date: date | None = None
+    is_index: bool = False
 
     @field_validator("ticker")
     @classmethod
@@ -136,3 +139,22 @@ class GapFillRequest(BaseModel):
         if (self.start_date is None) ^ (self.end_date is None):
             raise ValueError("start_date and end_date must be provided together")
         return self
+
+
+class SearchSymbolsRequest(BaseModel):
+    query: str = Field(..., min_length=1)
+    exchange: str | None = None
+    is_index: bool = False
+
+    @field_validator("query")
+    @classmethod
+    def normalize_query(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("exchange", mode="before")
+    @classmethod
+    def normalize_exchange(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip().upper()
+        return cleaned or None

@@ -5,6 +5,7 @@ import logging
 import os
 import time
 
+import httpx
 import pandas as pd
 
 try:
@@ -80,6 +81,7 @@ class OpenAlgoClient:
         timeframe: str,
         start_epoch: int,
         end_epoch: int,
+        exchange: str | None = None,
     ) -> list[OHLCVCandle]:
         if self.client is None:
             raise RuntimeError("OpenAlgo client not configured; set OPENALGO_API_KEY.")
@@ -104,7 +106,7 @@ class OpenAlgoClient:
             try:
                 response = self.client.history(
                     symbol=ticker,
-                    exchange=self.exchange,
+                    exchange=exchange or self.exchange,
                     interval=interval,
                     start_date=start_dt.strftime("%Y-%m-%d"),
                     end_date=end_dt.strftime("%Y-%m-%d"),
@@ -155,17 +157,77 @@ class OpenAlgoClient:
                 timestamp = timestamp.replace(tzinfo=timezone.utc)
 
             try:
+                row_data = row.to_dict()
+                open_value = float(row_data["open"])
+                high_value = float(row_data["high"])
+                low_value = float(row_data["low"])
+                close_value = float(row_data["close"])
+                volume_value = int(row_data["volume"])
                 candles.append(
                     OHLCVCandle(
                         epoch=int(timestamp.timestamp()),
-                        open=float(row["open"]),
-                        high=float(row["high"]),
-                        low=float(row["low"]),
-                        close=float(row["close"]),
-                        volume=int(row["volume"]),
+                        open=open_value,
+                        high=high_value,
+                        low=low_value,
+                        close=close_value,
+                        volume=volume_value,
                     )
                 )
             except (KeyError, TypeError, ValueError) as exc:
                 self._logger.warning("Invalid candle row skipped: %s", exc)
 
         return candles
+
+    def search_symbols(self, query: str, exchange: str | None = None) -> list[dict]:
+        if not self.api_key:
+            raise RuntimeError("OpenAlgo client not configured; set OPENALGO_API_KEY.")
+
+        base_url = (self.base_url or "").rstrip("/")
+        if not base_url:
+            raise RuntimeError("OpenAlgo base URL not configured.")
+
+        payload = {"apikey": self.api_key, "query": query}
+        if exchange:
+            payload["exchange"] = exchange
+
+        url = f"{base_url}/api/v1/search"
+        try:
+            response = httpx.post(url, json=payload, timeout=15.0)
+        except httpx.HTTPError as exc:
+            self._logger.exception("OpenAlgo search request failed")
+            raise RuntimeError("OpenAlgo search request failed") from exc
+
+        if response.status_code != 200:
+            self._logger.warning(
+                "OpenAlgo search request failed with status %s", response.status_code
+            )
+            raise RuntimeError("OpenAlgo search request failed")
+
+        data = response.json()
+        if data.get("status") != "success":
+            message = data.get("message") or "OpenAlgo search failed"
+            raise RuntimeError(message)
+
+        results = data.get("data") or []
+        if not isinstance(results, list):
+            return []
+        normalized: list[dict] = []
+        for item in results:
+            if not isinstance(item, dict):
+                continue
+            normalized.append(
+                {
+                    "symbol": item.get("symbol"),
+                    "brsymbol": item.get("brsymbol"),
+                    "name": item.get("name"),
+                    "exchange": item.get("exchange"),
+                    "brexchange": item.get("brexchange"),
+                    "token": item.get("token"),
+                    "expiry": item.get("expiry"),
+                    "strike": item.get("strike"),
+                    "lotsize": item.get("lotsize"),
+                    "instrumenttype": item.get("instrumenttype"),
+                    "tick_size": item.get("tick_size"),
+                }
+            )
+        return normalized

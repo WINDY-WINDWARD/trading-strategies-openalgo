@@ -54,6 +54,17 @@ Swagger groups endpoints by tags:
 - API base prefix: `/api/data-warehouse`
 - UI pages: `/data-warehouse...` (not part of Swagger API operations)
 
+### Command to run the app
+
+```bash
+conda run -n trade uvicorn data_warehouse.data_warehouse:app --reload --port 8811
+```
+
+or 
+```bash
+ DW_LOG_LEVEL=INFO DW_LOG_FILE=logs/data_warehouse.log DW_LOG_MAX_BYTES=104857600 DW_LOG_BACKUP_COUNT=10 uvicorn data_warehouse.data_warehouse:app --reload --port 8811
+```
+
 ### What each API does
 
 #### data-warehouse tag

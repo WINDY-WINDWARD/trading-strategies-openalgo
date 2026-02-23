@@ -1,0 +1,49 @@
+{% if error %}
+<div class="search-message search-error">{{ error }}</div>
+{% elif query %}
+    {% if results %}
+    <div class="search-results">
+        {% for item in results %}
+        <div class="search-result-card">
+            <div class="search-result-head">
+                <div>
+                    <div class="search-symbol">{{ item.symbol }}</div>
+                    <div class="search-name">{{ item.name }}</div>
+                </div>
+                <span class="search-badge">{{ item.exchange or '-' }}</span>
+            </div>
+            <div class="search-meta">
+                <span>Type: {{ item.instrumenttype or '-' }}</span>
+                <span>Token: {{ item.token or '-' }}</span>
+                <span>Lot: {{ item.lotsize or '-' }}</span>
+                <span>Tick: {{ item.tick_size or '-' }}</span>
+                {% if item.expiry %}
+                <span>Expiry: {{ item.expiry }}</span>
+                {% endif %}
+                {% if item.strike %}
+                <span>Strike: {{ item.strike }}</span>
+                {% endif %}
+            </div>
+            <form
+                class="search-add-form"
+                hx-post="/api/data-warehouse/stocks/add"
+                hx-swap="none"
+                hx-encoding="json"
+                onsubmit="setAddTickerFromSearch(event)"
+            >
+                <input type="hidden" name="ticker" value="{{ item.symbol }}" />
+                <input type="hidden" name="timeframe" value="1d" />
+                {% if item.exchange == 'NSE_INDEX' %}
+                <input type="hidden" name="is_index" value="true" />
+                {% endif %}
+                <button type="submit">Queue Add</button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="search-message">No results found.</div>
+    {% endif %}
+{% else %}
+<div class="search-message">Enter a query to search symbols.</div>
+{% endif %}

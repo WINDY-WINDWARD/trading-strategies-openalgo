@@ -12,6 +12,7 @@ from ...schemas.requests import (
     DeleteStockRequest,
     GapFillRequest,
     GetStockRequest,
+    SearchSymbolsRequest,
     UpdateAllRequest,
     UpdateTickerMetadataRequest,
     UpdateStockRequest,
@@ -222,3 +223,19 @@ def list_jobs(
     )
     total = service.count_jobs(status=status, job_type=job_type)
     return JSONResponse(status_code=200, content={"jobs": jobs, "total": total})
+
+
+@router.post("/stocks/search")
+def search_symbols(
+    request: SearchSymbolsRequest,
+    service: WarehouseService = Depends(get_service),
+):
+    provider = service.provider
+    try:
+        results = provider.search_symbols(
+            query=request.query,
+            exchange="NSE_INDEX" if request.is_index else request.exchange,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return JSONResponse(status_code=200, content={"results": results})

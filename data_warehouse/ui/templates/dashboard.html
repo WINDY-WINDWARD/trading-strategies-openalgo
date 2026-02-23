@@ -248,6 +248,92 @@
             color: var(--muted-foreground);
         }
 
+        .search-section {
+            grid-column: span 2;
+        }
+
+        .search-form {
+            display: grid;
+            grid-template-columns: 1.2fr 0.6fr auto;
+            gap: 12px;
+            align-items: end;
+        }
+
+        .search-form .toggle-row {
+            grid-column: span 2;
+            margin-top: 4px;
+        }
+
+        .search-form button {
+            height: 42px;
+        }
+
+        .search-results {
+            display: grid;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .search-result-card {
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 14px;
+            background: var(--card);
+            box-shadow: var(--shadow-sm);
+            display: grid;
+            gap: 12px;
+        }
+
+        .search-result-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .search-symbol {
+            font-weight: 700;
+            font-size: 1rem;
+        }
+
+        .search-name {
+            color: var(--muted-foreground);
+            font-size: 0.85rem;
+        }
+
+        .search-badge {
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: var(--accent);
+            color: var(--accent-foreground);
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .search-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px 16px;
+            font-size: 0.78rem;
+            color: var(--muted-foreground);
+        }
+
+        .search-add-form {
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .search-message {
+            margin-top: 12px;
+            font-size: 0.9rem;
+            color: var(--muted-foreground);
+        }
+
+        .search-error {
+            color: var(--destructive);
+            font-weight: 600;
+        }
+
         .filters {
             display: flex;
             flex-wrap: wrap;
@@ -258,6 +344,19 @@
 
         .filters select {
             min-width: 160px;
+        }
+
+        .toggle-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            font-size: 0.85rem;
+            color: var(--muted-foreground);
+        }
+
+        .toggle-row input[type="checkbox"] {
+            width: auto;
+            accent-color: var(--primary);
         }
 
         .ticker-select {
@@ -446,6 +545,14 @@
                 flex-direction: column;
                 align-items: flex-start;
             }
+
+            .search-form {
+                grid-template-columns: 1fr;
+            }
+
+            .search-section {
+                grid-column: span 1;
+            }
         }
     </style>
 </head>
@@ -503,6 +610,38 @@
             </div>
         </section>
         <section class="actions-grid">
+            <div class="card search-section">
+                <h2>Search OpenAlgo</h2>
+                <p>Find symbols across exchanges and queue them into the warehouse.</p>
+                <form
+                    class="search-form"
+                    hx-get="/data-warehouse/fragments/search"
+                    hx-target="#search-results"
+                    hx-swap="innerHTML"
+                >
+                    <div>
+                        <label for="search-query">Query</label>
+                        <input id="search-query" name="query" placeholder="INFY, RELIANCE, NIFTY" required />
+                    </div>
+                    <div>
+                        <label for="search-exchange">Exchange</label>
+                        <select id="search-exchange" name="exchange">
+                            <option value="">Any</option>
+                            <option value="NSE">NSE</option>
+                            <option value="BSE">BSE</option>
+                            <option value="NFO">NFO</option>
+                            <option value="MCX">MCX</option>
+                            <option value="NSE_INDEX">NSE_INDEX</option>
+                        </select>
+                    </div>
+                    <button type="submit">Search</button>
+                    <label class="toggle-row" for="search-is-index">
+                        <input id="search-is-index" type="checkbox" name="is_index" value="true" />
+                        Search index instruments (NSE_INDEX)
+                    </label>
+                </form>
+                <div id="search-results" hx-get="/data-warehouse/fragments/search" hx-trigger="load" hx-swap="innerHTML"></div>
+            </div>
             <div class="card">
                 <h2>Add</h2>
                 <form hx-post="/api/data-warehouse/stocks/add" hx-swap="none" hx-encoding="json" onsubmit="normalizeAddRange(event)">
@@ -523,6 +662,10 @@
                             <option value="1M">1M</option>
                         </select>
                     </div>
+                    <label class="toggle-row" for="add-is-index">
+                        <input id="add-is-index" type="checkbox" name="is_index" value="true" />
+                        Index instrument (NSE_INDEX)
+                    </label>
                     <div>
                         <label for="add-range">Range</label>
                         <select id="add-range" name="range_mode" onchange="toggleRangeInputs()">
@@ -750,6 +893,10 @@
                 return;
             }
 
+            if (form.getAttribute('hx-get')) {
+                return;
+            }
+
             const actionLabel = getActionLabel(form);
             if (event.detail.successful) {
                 showConfirmation('Action received', `${actionLabel} has been accepted by the backend.`);
@@ -783,7 +930,39 @@
             }
         }
 
+        function updateSearchExchangeState() {
+            const checkbox = document.getElementById('search-is-index');
+            const exchangeSelect = document.getElementById('search-exchange');
+            if (!checkbox || !exchangeSelect) {
+                return;
+            }
+            if (checkbox.checked) {
+                exchangeSelect.value = 'NSE_INDEX';
+                exchangeSelect.disabled = true;
+            } else {
+                if (exchangeSelect.value === 'NSE_INDEX') {
+                    exchangeSelect.value = '';
+                }
+                exchangeSelect.disabled = false;
+            }
+        }
+
+        function setAddTickerFromSearch(event) {
+            const form = event.target;
+            const ticker = form.querySelector('input[name="ticker"]');
+            const timeframe = form.querySelector('input[name="timeframe"]');
+            if (!ticker || !timeframe) {
+                return;
+            }
+            ticker.value = ticker.value.trim().toUpperCase();
+        }
+
         toggleRangeInputs();
+        updateSearchExchangeState();
+        const searchIndexToggle = document.getElementById('search-is-index');
+        if (searchIndexToggle) {
+            searchIndexToggle.addEventListener('change', updateSearchExchangeState);
+        }
     </script>
 </body>
 </html>

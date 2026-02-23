@@ -104,6 +104,40 @@ def jobs_fragment(
     )
 
 
+@router.get("/data-warehouse/fragments/search", response_class=HTMLResponse)
+def search_fragment(
+    request: Request,
+    query: str | None = None,
+    exchange: str | None = None,
+    is_index: str | None = None,
+):
+    service = get_service()
+    results: list[dict] = []
+    error: str | None = None
+    index_flag = False
+    if is_index is not None:
+        index_flag = is_index.strip().lower() in {"1", "true", "yes", "on"}
+    if query:
+        try:
+            selected_exchange = "NSE_INDEX" if index_flag else exchange
+            results = service.provider.search_symbols(
+                query=query,
+                exchange=selected_exchange,
+            )
+        except Exception as exc:
+            error = str(exc)
+    return templates.TemplateResponse(
+        "fragments/search_results.html",
+        {
+            "request": request,
+            "results": results,
+            "error": error,
+            "query": query or "",
+            "exchange": exchange or "",
+        },
+    )
+
+
 @router.get("/data-warehouse/tickers/{ticker}", response_class=HTMLResponse)
 def ticker_view(request: Request, ticker: str, timeframe: Timeframe = "1d"):
     service = get_service()

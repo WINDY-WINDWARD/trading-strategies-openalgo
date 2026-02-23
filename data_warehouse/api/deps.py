@@ -8,7 +8,7 @@ from typing import Protocol, cast
 from ..core.openalgo_client import OpenAlgoClient
 from ..db.db import get_connection, init_db
 from ..db.repository import WarehouseRepository
-from ..services.warehouse_service import JobStore, WarehouseService
+from ..services.warehouse_service import JobStore, OpenAlgoProvider, WarehouseService
 from ..schemas.ohlcv_data import OHLCVCandle
 
 
@@ -23,7 +23,10 @@ class _OpenAlgoProvider(Protocol):
         timeframe: str,
         start_epoch: int,
         end_epoch: int,
+        exchange: str | None = None,
     ) -> list[OHLCVCandle]: ...
+
+    def search_symbols(self, query: str, exchange: str | None = None) -> list[dict]: ...
 
 
 class _FakeOpenAlgoClient:
@@ -33,9 +36,11 @@ class _FakeOpenAlgoClient:
         timeframe: str,
         start_epoch: int,
         end_epoch: int,
+        exchange: str | None = None,
     ) -> list:
         _ = ticker
         _ = timeframe
+        _ = exchange
         if start_epoch > end_epoch:
             return []
         return [
@@ -47,6 +52,23 @@ class _FakeOpenAlgoClient:
                 close=105.0,
                 volume=1000,
             )
+        ]
+
+    def search_symbols(self, query: str, exchange: str | None = None) -> list[dict]:
+        _ = exchange
+        cleaned = query.strip().upper()
+        return [
+            {
+                "symbol": cleaned,
+                "name": f"{cleaned} Corp",
+                "exchange": "NSE",
+                "token": "12345",
+                "instrumenttype": "EQ",
+                "expiry": "",
+                "strike": 0,
+                "lotsize": 1,
+                "tick_size": 0.05,
+            }
         ]
 
 
@@ -72,7 +94,7 @@ def get_service() -> WarehouseService:
             provider = OpenAlgoClient()
         _service = WarehouseService(
             repository=repository,
-            provider=cast(_OpenAlgoProvider, provider),
+            provider=cast(OpenAlgoProvider, provider),
             job_store=JobStore(repository),
         )
         _service_db_path = db_path

@@ -124,6 +124,7 @@ class WarehouseService:
 
     def process_add(self, job_id: str, request: AddStockRequest) -> None:
         selected_range: EpochRange = self.default_range()
+        exchange = "NSE_INDEX" if request.is_index else None
         try:
             self.job_store.update(job_id, status="running")
             self.repository.ensure_ticker(request.ticker)
@@ -161,6 +162,7 @@ class WarehouseService:
                         timeframe=request.timeframe,
                         start_epoch=selected_range.start_epoch,
                         end_epoch=selected_range.end_epoch,
+                        exchange=exchange,
                     )
                 except Exception as exc:
                     logger.exception("Provider fetch failed")
@@ -229,6 +231,7 @@ class WarehouseService:
                             timeframe=request.timeframe,
                             start_epoch=gap_start,
                             end_epoch=gap_end,
+                            exchange=exchange,
                         )
                     except Exception as exc:
                         logger.exception("Provider fetch failed")
@@ -372,7 +375,9 @@ class WarehouseService:
             )
             if last_epoch is None:
                 add_request = AddStockRequest(
-                    ticker=request.ticker, timeframe=request.timeframe
+                    ticker=request.ticker,
+                    timeframe=request.timeframe,
+                    is_index=request.is_index,
                 )
                 self.process_add(job_id, add_request)
                 return
@@ -386,6 +391,7 @@ class WarehouseService:
                     timeframe=request.timeframe,
                     start_epoch=start_epoch,
                     end_epoch=end_epoch,
+                    exchange="NSE_INDEX" if request.is_index else None,
                 )
             except Exception as exc:
                 logger.exception("Provider fetch failed")
@@ -590,6 +596,7 @@ class WarehouseService:
                             timeframe=add_request.timeframe,
                             start_epoch=selected_range.start_epoch,
                             end_epoch=selected_range.end_epoch,
+                            exchange="NSE_INDEX" if add_request.is_index else None,
                         )
                         self.repository.upsert_ohlcv_batch(
                             ticker=add_request.ticker,
@@ -634,6 +641,7 @@ class WarehouseService:
                                 timeframe=add_request.timeframe,
                                 start_epoch=gap_start,
                                 end_epoch=gap_end,
+                                exchange="NSE_INDEX" if add_request.is_index else None,
                             )
                             self.repository.upsert_ohlcv_batch(
                                 ticker=add_request.ticker,
@@ -1038,7 +1046,10 @@ class OpenAlgoProvider(Protocol):
         timeframe: str,
         start_epoch: int,
         end_epoch: int,
+        exchange: str | None = None,
     ) -> list[OHLCVCandle]: ...
+
+    def search_symbols(self, query: str, exchange: str | None = None) -> list[dict]: ...
 
 
 logger = logging.getLogger(__name__)

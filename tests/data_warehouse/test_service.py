@@ -36,10 +36,16 @@ class FakeOpenAlgoClient:
         self.calls: list[tuple[int, int]] = []
 
     def fetch_ohlcv(
-        self, ticker: str, timeframe: str, start_epoch: int, end_epoch: int
+        self,
+        ticker: str,
+        timeframe: str,
+        start_epoch: int,
+        end_epoch: int,
+        exchange: str | None = None,
     ) -> list[OHLCVCandle]:
         _ = ticker
         _ = timeframe
+        _ = exchange
         self.calls.append((start_epoch, end_epoch))
         return [
             candle
