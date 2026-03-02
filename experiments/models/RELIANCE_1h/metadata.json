@@ -1,0 +1,45 @@
+{
+  "ticker": "RELIANCE",
+  "timeframe": "1h",
+  "model_name": "xgboost",
+  "hmm_feature_cols": [
+    "asset_log_ret",
+    "vol_spread_20h",
+    "asset_vix_corr_20h",
+    "vix_velocity_1h"
+  ],
+  "feature_cols_long": [
+    "dist_sma_200",
+    "adx_14",
+    "atr_14",
+    "atr_pct_14",
+    "force_index_13",
+    "ret_1h",
+    "ret_6h",
+    "ret_24h",
+    "rsi_14"
+  ],
+  "n_states": 3,
+  "state_name_map": {
+    "0": "Bear/High-Vol",
+    "1": "Sideways/Chop",
+    "2": "Bull/Low-Vol"
+  },
+  "label_map": {
+    "-1": 0,
+    "0": 1,
+    "1": 2
+  },
+  "inv_label_map": {
+    "0": -1,
+    "1": 0,
+    "2": 1
+  },
+  "buy_threshold": 0.8,
+  "sell_threshold": 0.7,
+  "pt_pct": 0.05,
+  "sl_pct": 0.02,
+  "time_barrier_h": 20,
+  "train_start": "2021-03-18",
+  "train_end": "2023-12-27"
+}
